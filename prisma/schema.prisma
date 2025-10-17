@@ -1,0 +1,265 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ROLE {
+  CLIENT
+  MARKET
+  ADMIN
+}
+
+enum Status {
+  ACCEPTED
+  REJECTED
+  PENDING
+}
+
+enum Gender {
+  MAN
+  WOMAN
+}
+
+enum Membership {
+  NORMAL
+  VIP
+}
+
+enum PromotionType {
+  PRODUCT
+  TICKET
+}
+
+model User {
+  id               Int                @id @default(autoincrement())
+  name             String             @db.VarChar(100)
+  lastName         String             @map("last_name") @db.VarChar(100)
+  email            String             @unique @db.VarChar(255)
+  password         String             @db.VarChar(255)
+  birthDate        DateTime           @map("birth_date") @db.Date
+  city             String?            @db.VarChar(100)
+  country          String?            @db.VarChar(100)
+  gender           Gender
+  createdAt        DateTime           @default(now()) @map("created_at")
+  role             ROLE
+  membership       Membership         @default(NORMAL)
+  documentId       Int                @map("document_id")
+  image            String?
+  blockedUserId    Int?               @map("blocked_user")
+  blockedUser      User?              @relation("UserBlocks", fields: [blockedUserId], references: [id])
+  blockedBy        User[]             @relation("UserBlocks")
+  places           Place[]            @relation("PlaceOwner")
+  organizedEvents  Event[]            @relation("EventOrganizer")
+  communityMembers Community_Member[]
+  reportsSent      Report[]           @relation("ReportsFrom")
+  reportsReceived  Report[]           @relation("ReportsTo")
+  invitationsSent  Invitation[]       @relation("InvitationsFrom")
+  invitationsReceived Invitation[]    @relation("InvitationsTo")
+  requests         Request[]          @relation("RequestFrom")
+  requestsAccepted Request[]          @relation("RequestAcceptedBy")
+  boughtTickets    Bought_Ticket[]
+  reviews          Review[]
+
+  @@map("User")
+}
+
+model Place {
+  id            Int          @id @default(autoincrement())
+  name          String       @db.VarChar(255)
+  direction     String       @db.Text
+  city          String       @db.VarChar(100)
+  country       String       @db.VarChar(100)
+  capacity      Int?
+  type          String?      @db.VarChar(50)
+  proprietorId  Int?         @map("id_propietary")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  image         String?
+  mapUrl        String?      @map("map_url")
+  igUrl         String?      @map("ig_url")
+  facebookUrl   String?      @map("facebook_url")
+  tiktokUrl     String?      @map("tiktok_url")
+  status        Status       @default(PENDING)
+  proprietor    User?        @relation("PlaceOwner", fields: [proprietorId], references: [id], onDelete: SetNull)
+  products      Product[]
+  events        Event[]
+  reviews       Review[]
+  ads           Ad[]
+  invitations   Invitation[]
+
+  @@map("Place")
+}
+
+model Product {
+  id          Int          @id @default(autoincrement())
+  name        String       @db.VarChar(191)
+  price       Decimal      @db.Decimal(10, 2)
+  image       String
+  placeId     Int          @map("place_id")
+  place       Place        @relation(fields: [placeId], references: [id])
+  promotions  Promotion[]
+
+  @@map("Product")
+}
+
+model Event {
+  id           Int          @id @default(autoincrement())
+  name         String       @db.VarChar(255)
+  description  String?      @db.Text
+  timeBegin    DateTime     @map("time_begin")
+  timeEnd      DateTime?    @map("time_end")
+  placeId      Int          @map("id_place")
+  organizerId  Int          @map("id_organizer")
+  communityId  Int?         @map("community_id")
+  minAge       Int          @map("min_age") @default(18)
+  status       String       @default("proximo") @db.VarChar(20)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  externalUrl  String?      @map("external_url")
+  place        Place        @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  organizer    User         @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  community    Community?   @relation(fields: [communityId], references: [id])
+  tickets      Ticket[]
+  reviews      Review[]
+  ads          Ad[]         @relation("AdEvent")
+  invitations  Invitation[]
+
+  @@map("Event")
+}
+
+model Ticket {
+  id            Int             @id @default(autoincrement())
+  eventId       Int             @map("id_event")
+  type          String          @db.VarChar(50)
+  price         Decimal         @map("precio") @db.Decimal(10, 2)
+  quantity      Int
+  description   String          @db.VarChar(255)
+  event         Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  boughtTickets Bought_Ticket[]
+  promotions    Promotion[]
+
+  @@map("Ticket")
+}
+
+model Bought_Ticket {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("id_user")
+  ticketId  Int      @map("id_ticket")
+  price     Decimal  @map("precio") @db.Decimal(10, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id])
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+
+  @@map("Bought_Ticket")
+}
+
+model Review {
+  id           Int       @id @default(autoincrement())
+  userId       Int       @map("id_user")
+  eventId      Int?      @map("id_event")
+  placeId      Int       @map("id_place")
+  calification Int
+  comment      String?   @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event        Event?    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  place        Place     @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@map("Review")
+}
+
+model Community {
+  id        Int               @id @default(autoincrement())
+  name      String
+  events    Event[]
+  members   Community_Member[]
+  requests  Request[]
+
+  @@map("Community")
+}
+
+model Community_Member {
+  userId      Int       @map("id_user")
+  role        ROLE
+  communityId Int       @map("id_community")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  exitAt      DateTime? @map("exit_at")
+  user        User      @relation(fields: [userId], references: [id])
+  community   Community @relation(fields: [communityId], references: [id])
+
+  @@id([userId, communityId])
+  @@map("Community_Member")
+}
+
+model Report {
+  id          Int      @id @default(autoincrement())
+  fromId      Int      @map("from_id")
+  toId        Int      @map("to_id")
+  description String
+  createdAt   DateTime @default(now()) @map("created_at")
+  from        User     @relation("ReportsFrom", fields: [fromId], references: [id])
+  to          User     @relation("ReportsTo", fields: [toId], references: [id])
+
+  @@map("Report")
+}
+
+model Invitation {
+  id             Int       @id @default(autoincrement())
+  fromId         Int       @map("from_id")
+  toId           Int       @map("to_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  status         Status    @default(PENDING)
+  placeId        Int       @map("place_id")
+  invitationDate DateTime? @map("invitation_date")
+  eventId        Int?      @map("event_id")
+  from           User      @relation("InvitationsFrom", fields: [fromId], references: [id])
+  to             User      @relation("InvitationsTo", fields: [toId], references: [id])
+  place          Place     @relation(fields: [placeId], references: [id])
+  event          Event?    @relation(fields: [eventId], references: [id])
+
+  @@map("Invitation")
+}
+
+model Request {
+  id          Int       @id @default(autoincrement())
+  fromId      Int       @map("from_id")
+  communityId Int       @map("community_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  status      Status    @default(PENDING)
+  acceptedById Int?     @map("accepted_by")
+  from        User      @relation("RequestFrom", fields: [fromId], references: [id])
+  community   Community @relation(fields: [communityId], references: [id])
+  acceptedBy  User?     @relation("RequestAcceptedBy", fields: [acceptedById], references: [id])
+
+  @@unique([fromId, communityId])
+  @@map("Request")
+}
+
+model Ad {
+  id        Int      @id @default(autoincrement())
+  placeId   Int      @map("place_id")
+  eventId   Int?     @map("event_id")
+  timeBegin DateTime @map("time_begin")
+  timeEnd   DateTime @map("time_end")
+  place     Place    @relation(fields: [placeId], references: [id])
+  event     Event?   @relation("AdEvent", fields: [eventId], references: [id])
+
+  @@map("Ad")
+}
+
+model Promotion {
+  id         Int            @id @default(autoincrement())
+  type       PromotionType
+  productId  Int?           @map("product_id")
+  ticketId   Int?           @map("ticket_id")
+  membership Membership     @default(NORMAL)
+  discount   Int
+  timeBegin  DateTime       @map("time_begin")
+  timeEnd    DateTime?      @map("time_end")
+  product    Product?       @relation(fields: [productId], references: [id])
+  ticket     Ticket?        @relation(fields: [ticketId], references: [id])
+
+  @@map("Promotion")
+}
