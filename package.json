@@ -17,6 +17,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.ts",
     "clean": "rm -rf node_modules dist .next",
     "reinstall": "npm run clean && npm install"
   },

@@ -6,6 +6,10 @@ import { PrismaClient } from '@prisma/client';
 
 // Import routes
 import userRoutes from './routes/users';
+import communityRoutes from './routes/communities';
+import requestRoutes from './routes/requests';
+import invitationRoutes from './routes/invitations';
+import ticketRoutes from './routes/tickets';
 
 // Load environment variables
 dotenv.config();
@@ -33,6 +37,10 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/users', userRoutes);
+app.use('/api/communities', communityRoutes);
+app.use('/api/requests', requestRoutes);
+app.use('/api/invitations', invitationRoutes);
+app.use('/api/tickets', ticketRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
