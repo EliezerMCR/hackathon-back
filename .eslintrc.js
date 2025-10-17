@@ -5,7 +5,7 @@ module.exports = {
     sourceType: 'module',
   },
   extends: [
-    '@typescript-eslint/recommended',
+    'plugin:@typescript-eslint/recommended',
   ],
   plugins: [
     '@typescript-eslint',

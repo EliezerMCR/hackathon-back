@@ -4,9 +4,11 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 
-// Import routes
 import userRoutes from './routes/users';
-import postRoutes from './routes/posts';
+import authRoutes from './routes/auth';
+import { authenticate, authorize } from './middlewares/auth';
+import { errorHandler } from './middlewares/errorHandler';
+import { HTTP404Error } from './utils/errors';
 
 // Load environment variables
 dotenv.config();
@@ -35,24 +37,20 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/users', userRoutes);
-app.use('/api/posts', postRoutes);
+app.use('/api/auth', authRoutes);
+
+// Protected route example
+app.get('/api/protected', authenticate, authorize(['ADMIN']), (req, res) => {
+  res.json({ message: 'This is a protected route for admins only' });
+});
 
 // 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ 
-    error: 'Route not found',
-    path: req.originalUrl 
-  });
+app.use('*', (req, res, next) => {
+  next(new HTTP404Error('Route not found'));
 });
 
 // Global error handler
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Error:', err.message);
-  res.status(500).json({ 
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
-});
+app.use(errorHandler);
 
 // Graceful shutdown
 process.on('beforeExit', async () => {

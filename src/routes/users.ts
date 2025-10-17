@@ -1,142 +1,147 @@
-import { Router, Request, Response } from 'express';
-import { z } from 'zod';
+import { Router } from 'express';
 import { prisma } from '../index';
+import { authenticate, authorize } from '../middlewares/auth';
+import { validate } from '../middlewares/validation';
+import { createUserSchema, updateUserSchema } from '../schemas/userSchemas';
+import { HTTP404Error, HTTP409Error } from '../utils/errors';
+import bcrypt from 'bcryptjs';
 
 const router = Router();
 
-// Validation schemas
-const createUserSchema = z.object({
-  email: z.string().email(),
-  name: z.string().min(1, 'Name is required'),
-});
-
-const updateUserSchema = z.object({
-  email: z.string().email().optional(),
-  name: z.string().min(1).optional(),
-});
-
-// GET /api/users - Get all users
-router.get('/', async (req: Request, res: Response) => {
+router.get('/me', authenticate, async (req: any, res: any, next) => {
   try {
-    const users = await prisma.user.findMany({
-      include: {
-        posts: true,
-      },
-    });
-    return res.json(users);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    return res.status(500).json({ error: 'Failed to fetch users' });
-  }
-});
-
-// GET /api/users/:id - Get user by ID
-router.get('/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
     const user = await prisma.user.findUnique({
-      where: { id },
-      include: {
-        posts: true,
-      },
+      where: { id: req.user.userId },
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return next(new HTTP404Error('User not found'));
+    }
+
+    const { passwordid, id, ...userWithoutPassword } = user;
+    
+    res.json(userWithoutPassword);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/me', authenticate, validate(updateUserSchema), async (req: any, res: any, next) => {
+  try {
+    const user = await prisma.user.update({
+      where: { id: req.user.userId },
+      data: req.body,
+    });
+
+    res.json(user);
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      return next(new HTTP404Error('User not found'));
+    }
+    if (error.code === 'P2002') {
+      return next(new HTTP409Error('Email already exists'));
+    }
+    next(error);
+  }
+});
+
+router.delete('/me', authenticate, async (req: any, res: any, next) => {
+  try {
+    await prisma.user.delete({
+      where: { id: req.user.userId },
+    });
+
+    res.status(204).send();
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      return next(new HTTP404Error('User not found'));
+    }
+    next(error);
+  }
+});
+
+router.get('/', authenticate, authorize(['ADMIN']), async (req: any, res: any, next) => {
+  try {
+    const users = await prisma.user.findMany();
+    res.json(users);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:id', authenticate, authorize(['ADMIN']), async (req: any, res: any, next) => {
+  try {
+    const { id } = req.params;
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!user) {
+      return next(new HTTP404Error('User not found'));
     }
 
     res.json(user);
   } catch (error) {
-    console.error('Error fetching user:', error);
-    res.status(500).json({ error: 'Failed to fetch user' });
+    next(error);
   }
 });
 
-// POST /api/users - Create new user
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticate, authorize(['ADMIN']), validate(createUserSchema), async (req: any, res: any, next) => {
   try {
-    const validation = createUserSchema.safeParse(req.body);
-    
-    if (!validation.success) {
-      return res.status(400).json({ 
-        error: 'Validation failed',
-        details: validation.error.errors 
-      });
-    }
-
-    const { email, name } = validation.data;
+    const { email, name, password, role } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await prisma.user.create({
       data: {
         email,
         name,
+        password: hashedPassword,
+        role,
       },
     });
 
     res.status(201).json(user);
   } catch (error: any) {
-    console.error('Error creating user:', error);
-    
     if (error.code === 'P2002') {
-      return res.status(409).json({ error: 'Email already exists' });
+      return next(new HTTP409Error('Email already exists'));
     }
-    
-    res.status(500).json({ error: 'Failed to create user' });
+    next(error);
   }
 });
 
-// PUT /api/users/:id - Update user
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', authenticate, authorize(['ADMIN']), validate(updateUserSchema), async (req: any, res: any, next) => {
   try {
     const { id } = req.params;
-    const validation = updateUserSchema.safeParse(req.body);
-    
-    if (!validation.success) {
-      return res.status(400).json({ 
-        error: 'Validation failed',
-        details: validation.error.errors 
-      });
-    }
-
     const user = await prisma.user.update({
-      where: { id },
-      data: validation.data,
+      where: { id: parseInt(id) },
+      data: req.body,
     });
 
     res.json(user);
   } catch (error: any) {
-    console.error('Error updating user:', error);
-    
     if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'User not found' });
+      return next(new HTTP404Error('User not found'));
     }
-    
     if (error.code === 'P2002') {
-      return res.status(409).json({ error: 'Email already exists' });
+      return next(new HTTP409Error('Email already exists'));
     }
-    
-    res.status(500).json({ error: 'Failed to update user' });
+    next(error);
   }
 });
 
-// DELETE /api/users/:id - Delete user
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, authorize(['ADMIN']), async (req: any, res: any, next) => {
   try {
     const { id } = req.params;
-    
     await prisma.user.delete({
-      where: { id },
+      where: { id: parseInt(id) },
     });
 
     res.status(204).send();
   } catch (error: any) {
-    console.error('Error deleting user:', error);
-    
     if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'User not found' });
+      return next(new HTTP404Error('User not found'));
     }
-    
-    res.status(500).json({ error: 'Failed to delete user' });
+    next(error);
   }
 });
 
