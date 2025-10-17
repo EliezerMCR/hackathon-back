@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { prisma } from '../app';
+import { prisma } from '../index';
 
 const router = Router();
 

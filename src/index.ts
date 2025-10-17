@@ -6,6 +6,10 @@ import { PrismaClient } from '@prisma/client';
 
 import userRoutes from './routes/users';
 import authRoutes from './routes/auth';
+import communityRoutes from './routes/communities';
+import requestRoutes from './routes/requests';
+import invitationRoutes from './routes/invitations';
+import ticketRoutes from './routes/tickets';
 import { authenticate, authorize } from './middlewares/auth';
 import { errorHandler } from './middlewares/errorHandler';
 import { HTTP404Error } from './utils/errors';
@@ -38,6 +42,10 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/communities', communityRoutes);
+app.use('/api/requests', requestRoutes);
+app.use('/api/invitations', invitationRoutes);
+app.use('/api/tickets', ticketRoutes);
 
 // Protected route example
 app.get('/api/protected', authenticate, authorize(['ADMIN']), (req, res) => {
@@ -45,8 +53,12 @@ app.get('/api/protected', authenticate, authorize(['ADMIN']), (req, res) => {
 });
 
 // 404 handler
-app.use('*', (req, res, next) => {
-  next(new HTTP404Error('Route not found'));
+app.use('*', (req, res) => {
+  res.status(404).json({ 
+    error: 'NOT_FOUND',
+    message: 'Route not found',
+    path: req.originalUrl 
+  });
 });
 
 // Global error handler
