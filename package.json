@@ -2,34 +2,42 @@
   "name": "hackathon-back",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=18",
+    "npm": ">=9.0.0"
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "lint": "eslint src/**/*.ts",
+    "vercel-build": "prisma generate && prisma migrate deploy && tsc",
+    "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "clean": "rm -rf node_modules dist .next",
+    "reinstall": "npm run clean && npm install"
   },
   "dependencies": {
-    "@neondatabase/serverless": "1.0.2",
+    "@neondatabase/serverless": "^1.0.2",
     "@prisma/client": "^6.17.1",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "helmet": "^7.1.0",
-    "prisma": "latest",
-    "zod": "^3.22.4"
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "prisma": "^6.17.1",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.10.0",
-    "@typescript-eslint/eslint-plugin": "^6.15.0",
-    "@typescript-eslint/parser": "^6.15.0",
-    "eslint": "^8.56.0",
-    "tsx": "^4.6.0",
-    "typescript": "^5.3.0"
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "@typescript-eslint/eslint-plugin": "^8.19.1",
+    "@typescript-eslint/parser": "^8.19.1",
+    "eslint": "^9.18.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
   }
 }

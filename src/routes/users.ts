@@ -1,26 +1,59 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { prisma } from '../index';
+import { prisma } from '../app';
 
 const router = Router();
 
 // Validation schemas
 const createUserSchema = z.object({
-  email: z.string().email(),
-  name: z.string().min(1, 'Name is required'),
+  name: z.string().min(1, 'Name is required').max(100),
+  lastName: z.string().min(1, 'Last name is required').max(100),
+  email: z.string().email().max(255),
+  password: z.string().min(6, 'Password must be at least 6 characters').max(255),
+  birthDate: z.string().refine((date) => !isNaN(Date.parse(date)), {
+    message: 'Invalid date format',
+  }),
+  city: z.string().max(100).optional(),
+  country: z.string().max(100).optional(),
+  gender: z.enum(['MAN', 'WOMAN']),
+  role: z.enum(['CLIENT', 'MARKET', 'ADMIN']),
+  membership: z.enum(['NORMAL', 'VIP']).default('NORMAL'),
+  documentId: z.number().int(),
+  image: z.string().optional(),
 });
 
 const updateUserSchema = z.object({
-  email: z.string().email().optional(),
-  name: z.string().min(1).optional(),
+  name: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  email: z.string().email().max(255).optional(),
+  password: z.string().min(6).max(255).optional(),
+  birthDate: z.string().refine((date) => !isNaN(Date.parse(date)), {
+    message: 'Invalid date format',
+  }).optional(),
+  city: z.string().max(100).optional(),
+  country: z.string().max(100).optional(),
+  gender: z.enum(['MAN', 'WOMAN']).optional(),
+  membership: z.enum(['NORMAL', 'VIP']).optional(),
+  image: z.string().optional(),
 });
 
 // GET /api/users - Get all users
 router.get('/', async (req: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany({
-      include: {
-        posts: true,
+      select: {
+        id: true,
+        name: true,
+        lastName: true,
+        email: true,
+        birthDate: true,
+        city: true,
+        country: true,
+        gender: true,
+        role: true,
+        membership: true,
+        image: true,
+        createdAt: true,
       },
     });
     return res.json(users);
@@ -34,10 +67,56 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = parseInt(id, 10);
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
     const user = await prisma.user.findUnique({
-      where: { id },
-      include: {
-        posts: true,
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        lastName: true,
+        email: true,
+        birthDate: true,
+        city: true,
+        country: true,
+        gender: true,
+        role: true,
+        membership: true,
+        image: true,
+        createdAt: true,
+        organizedEvents: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            timeBegin: true,
+            timeEnd: true,
+            status: true,
+          },
+        },
+        boughtTickets: {
+          select: {
+            id: true,
+            price: true,
+            createdAt: true,
+            ticket: {
+              select: {
+                type: true,
+                description: true,
+                event: {
+                  select: {
+                    name: true,
+                    timeBegin: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -64,12 +143,36 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    const { email, name } = validation.data;
+    const { email, name, lastName, password, birthDate, city, country, gender, role, membership, documentId, image } = validation.data;
 
     const user = await prisma.user.create({
       data: {
         email,
         name,
+        lastName,
+        password, // Remember to hash this in production!
+        birthDate: new Date(birthDate),
+        city,
+        country,
+        gender,
+        role,
+        membership: membership || 'NORMAL',
+        documentId,
+        image,
+      },
+      select: {
+        id: true,
+        name: true,
+        lastName: true,
+        email: true,
+        birthDate: true,
+        city: true,
+        country: true,
+        gender: true,
+        role: true,
+        membership: true,
+        image: true,
+        createdAt: true,
       },
     });
 
@@ -89,6 +192,12 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = parseInt(id, 10);
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
     const validation = updateUserSchema.safeParse(req.body);
     
     if (!validation.success) {
@@ -98,9 +207,28 @@ router.put('/:id', async (req: Request, res: Response) => {
       });
     }
 
+    const updateData: any = { ...validation.data };
+    if (updateData.birthDate) {
+      updateData.birthDate = new Date(updateData.birthDate);
+    }
+
     const user = await prisma.user.update({
-      where: { id },
-      data: validation.data,
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        lastName: true,
+        email: true,
+        birthDate: true,
+        city: true,
+        country: true,
+        gender: true,
+        role: true,
+        membership: true,
+        image: true,
+        createdAt: true,
+      },
     });
 
     res.json(user);
@@ -123,9 +251,14 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = parseInt(id, 10);
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
     
     await prisma.user.delete({
-      where: { id },
+      where: { id: userId },
     });
 
     res.status(204).send();
