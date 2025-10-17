@@ -22,6 +22,7 @@ enum Status {
 enum Gender {
   MAN
   WOMAN
+  OTHER
 }
 
 enum Membership {
