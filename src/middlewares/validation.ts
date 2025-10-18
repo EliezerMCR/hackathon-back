@@ -8,7 +8,8 @@ export const validate = (schema: AnyZodObject) => (
   next: NextFunction
 ) => {
   try {
-    schema.parse(req.body);
+    const parsed = schema.parse(req.body);
+    req.body = parsed;
     next();
   } catch (error) {
     if (error instanceof z.ZodError) {

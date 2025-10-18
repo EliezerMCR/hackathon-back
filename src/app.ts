@@ -28,6 +28,7 @@ import reviewRoutes from './routes/reviews';
 import categoryRoutes from './routes/categories';
 import notificationRoutes from './routes/notifications';
 import aiAssistantRoutes from './routes/ai-assistant';
+import identityRoutes from './routes/identity';
 import { authenticate, authorize } from './middlewares/auth';
 import { errorHandler } from './middlewares/errorHandler';
 
@@ -73,6 +74,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiAssistantRoutes);
+app.use('/api/identity', identityRoutes);
 
 // Protected route example
 app.get('/api/protected', authenticate, authorize(['ADMIN']), (req, res) => {

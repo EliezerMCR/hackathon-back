@@ -2,19 +2,107 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import fs from 'fs';
+import { Gender } from '@prisma/client';
+import { ZodError } from 'zod';
+import multer from 'multer';
 import { prisma } from '../lib/prisma';
 import { authenticate, authorize } from '../middlewares/auth';
 import { validate } from '../middlewares/validation';
 import { loginSchema, signupSchema, signupWithPrivilegeSchema, forgotPasswordSchema, resetPasswordSchema } from '../schemas/userSchemas';
 import { HTTP401Error, HTTP409Error, HTTP400Error } from '../utils/errors';
 import { sendEmail } from '../utils/email';
+import { saveBase64ImageToTempFile } from '../services/identity/helpers';
+import { verifyIdentityDocument, DocumentVerificationResult } from '../services/identity/documentVerification.service';
 
 const router = Router();
+const upload = multer();
 
-router.post('/signup', validate(signupSchema), async (req, res, next) => {
-  const { name, lastName, email, password, birthDate, gender, city, country } = req.body;
+const verifyDocument = async ({
+  documentFrontImage,
+  fullName,
+  documentNumber,
+}: {
+  documentFrontImage: string;
+  fullName: string;
+  documentNumber: number;
+}): Promise<DocumentVerificationResult> => {
+  console.log('--- [VERIFY DOCUMENT] input:', { documentFrontImage: documentFrontImage?.slice?.(0, 30) + '...', fullName, documentNumber });
+
+  let tempFilePath: string | undefined;
 
   try {
+    let tempFile;
+    try {
+      tempFile = await saveBase64ImageToTempFile(documentFrontImage, 'signup-document');
+    } catch (error) {
+      throw new HTTP400Error('El documento enviado no es una imagen válida.');
+    }
+
+    tempFilePath = tempFile.filePath;
+
+    let verification: DocumentVerificationResult;
+    try {
+      verification = await verifyIdentityDocument({
+        filePath: tempFile.filePath,
+        fullName,
+        documentNumber: documentNumber.toString(),
+      });
+      console.log('--- [VERIFY DOCUMENT] verification result:', verification);
+    } catch (error) {
+      console.log('--- [VERIFY DOCUMENT] error in OCR:', error);
+      throw new HTTP400Error('No se pudo procesar la cédula enviada.');
+    }
+
+    if (!verification.isValid) {
+      console.log('--- [VERIFY DOCUMENT] verification failed:', verification);
+      throw new HTTP400Error('La información de la cédula no coincide con los datos del usuario.');
+    }
+
+    return verification;
+  } finally {
+    if (tempFilePath) {
+      await fs.promises.unlink(tempFilePath).catch(() => undefined);
+      console.log('--- [VERIFY DOCUMENT] temp file deleted:', tempFilePath);
+    }
+  }
+};
+
+router.post('/signup', upload.single('documentFrontImage'), async (req, res, next) => {
+  try {
+    console.log('--- [SIGNUP] req.body:', req.body);
+    console.log('--- [SIGNUP] req.file:', req.file);
+
+    if (!req.file) {
+      throw new HTTP400Error('La imagen frontal de la cédula es obligatoria.');
+    }
+
+    const parsedBody = signupSchema.parse({
+      ...req.body,
+      documentFrontImage: req.file.buffer.toString('base64'),
+    });
+
+    console.log('--- [SIGNUP] parsedBody:', parsedBody);
+
+    const {
+      name,
+      lastName,
+      email,
+      password,
+      birthDate,
+      gender,
+      city,
+      country,
+      documentId,
+      documentFrontImage,
+    } = parsedBody;
+
+    const verification = await verifyDocument({
+      documentFrontImage,
+      fullName: `${name} ${lastName}`.trim(),
+      documentNumber: documentId,
+    });
+
     const hashedPassword = await bcrypt.hash(password, 10);
     await prisma.user.create({
       data: {
@@ -27,47 +115,99 @@ router.post('/signup', validate(signupSchema), async (req, res, next) => {
         city,
         country,
         role: 'CLIENT',
-        documentId: 0,
+        documentId,
       },
     });
 
-    res.status(201).json({ message: 'User created successfully' });
+    res.status(201).json({
+      message: 'User created successfully',
+      documentVerified: verification.isValid,
+    });
   } catch (error: any) {
+    console.log('--- [SIGNUP] error:', error);
     if (error.code === 'P2002') {
       return next(new HTTP409Error('User already exists'));
+    }
+    if (error instanceof HTTP400Error) {
+      return next(error);
+    }
+    if (error instanceof ZodError) {
+      return next(new HTTP400Error(error.errors[0]?.message ?? 'Datos inválidos.'));
     }
     next(error);
   }
 });
 
-router.post('/signup-with-privilege', authenticate, authorize(['ADMIN']), validate(signupWithPrivilegeSchema), async (req, res, next) => {
-  const { name, lastName, email, password, birthDate, gender, role, city, country } = req.body;
+router.post(
+  '/signup-with-privilege',
+  authenticate,
+  authorize(['ADMIN']),
+  upload.single('documentFrontImage'),
+  async (req, res, next) => {
+    try {
+      if (!req.file) {
+        throw new HTTP400Error('La imagen frontal de la cédula es obligatoria.');
+      }
 
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    await prisma.user.create({
-      data: {
+      const parsedBody = signupWithPrivilegeSchema.parse({
+        ...req.body,
+        documentFrontImage: req.file.buffer.toString('base64'),
+      });
+
+      const {
         name,
         lastName,
         email,
-        password: hashedPassword,
-        birthDate: new Date(birthDate),
+        password,
+        birthDate,
         gender,
+        role,
         city,
         country,
-        role,
-        documentId: 0,
-      },
-    });
+        documentId,
+        documentFrontImage,
+      } = parsedBody;
 
-    res.status(201).json({ message: 'User created successfully' });
-  } catch (error: any) {
-    if (error.code === 'P2002') {
-      return next(new HTTP409Error('User already exists'));
+      const verification = await verifyDocument({
+        documentFrontImage,
+        fullName: `${name} ${lastName}`.trim(),
+        documentNumber: documentId,
+      });
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await prisma.user.create({
+        data: {
+          name,
+          lastName,
+          email,
+          password: hashedPassword,
+          birthDate: new Date(birthDate),
+          gender,
+          city,
+          country,
+          role,
+          documentId,
+        },
+      });
+
+      res.status(201).json({
+        message: 'User created successfully',
+        documentVerified: verification.isValid,
+      });
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        return next(new HTTP409Error('User already exists'));
+      }
+      if (error instanceof HTTP400Error) {
+        return next(error);
+      }
+      if (error instanceof ZodError) {
+        return next(new HTTP400Error(error.errors[0]?.message ?? 'Datos inválidos.'));
+      }
+      next(error);
     }
-    next(error);
   }
-});
+);
 
 router.post('/login', validate(loginSchema), async (req, res, next) => {
   const { email, password } = req.body;

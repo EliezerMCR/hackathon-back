@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Gender } from '@prisma/client';
 
 export const createUserSchema = z.object({
   email: z.string().email(),
@@ -25,7 +26,14 @@ export const signupSchema = z.object({
     name: z.string(),
     lastName: z.string(),
     birthDate: z.string(),
-    gender: z.string(),
+  gender: z.nativeEnum(Gender),
+  city: z.string().optional(),
+  country: z.string().optional(),
+  documentId: z.coerce
+    .number({ required_error: 'El número de documento es obligatorio.' })
+    .int()
+    .positive('El número de documento es obligatorio.'),
+  documentFrontImage: z.string().min(1, 'La imagen frontal de la cédula es obligatoria.'),
 });
 
 export const signupWithPrivilegeSchema = signupSchema.extend({
