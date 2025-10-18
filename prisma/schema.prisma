@@ -50,14 +50,14 @@ model User {
   city                 String?    @db.VarChar(100)
   country              String?    @db.VarChar(100)
   gender               Gender
-  createdAt            DateTime   @default(now()) @map("created_at")
+  createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz
   role                 ROLE
   membership           Membership @default(NORMAL)
   documentId           Int        @map("document_id")
   image                String?
   blockedUserId        Int?       @map("blocked_user")
   passwordResetToken   String?    @map("password_reset_token") @db.VarChar(255)
-  passwordResetExpires DateTime?  @map("password_reset_expires")
+  passwordResetExpires DateTime?  @map("password_reset_expires") @db.Timestamptz
   blockedUser         User?              @relation("UserBlocks", fields: [blockedUserId], references: [id])
   blockedBy           User[]             @relation("UserBlocks")
   places              Place[]            @relation("PlaceOwner")
@@ -88,7 +88,7 @@ model Place {
   capacity    Int?
   type        String?      @db.VarChar(50)
   ownerId     Int?         @map("id_propietary")
-  createdAt   DateTime     @default(now()) @map("created_at")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
   image       String?
   description String?      @db.Text
   mapUrl      String?      @map("map_url")
@@ -122,14 +122,14 @@ model Event {
   id          Int          @id @default(autoincrement())
   name        String       @db.VarChar(255)
   description String?      @db.Text
-  timeBegin   DateTime     @map("time_begin")
-  timeEnd     DateTime?    @map("time_end")
+  timeBegin   DateTime     @map("time_begin") @db.Timestamptz
+  timeEnd     DateTime?    @map("time_end") @db.Timestamptz
   placeId     Int          @map("id_place")
   organizerId Int          @map("id_organizer")
   communityId Int?         @map("community_id")
   minAge      Int          @default(18) @map("min_age")
   status      String       @default("proximo") @db.VarChar(20)
-  createdAt   DateTime     @default(now()) @map("created_at")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
   externalUrl String?      @map("external_url")
   place       Place        @relation(fields: [placeId], references: [id], onDelete: Cascade)
   organizer   User         @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
@@ -161,7 +161,7 @@ model Bought_Ticket {
   userId    Int      @map("id_user")
   ticketId  Int      @map("id_ticket")
   price     Decimal  @map("precio") @db.Decimal(10, 2)
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   user      User     @relation(fields: [userId], references: [id])
   ticket    Ticket   @relation(fields: [ticketId], references: [id])
 
@@ -175,7 +175,7 @@ model Review {
   placeId      Int      @map("id_place")
   calification Int
   comment      String?  @db.Text
-  createdAt    DateTime @default(now()) @map("created_at")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   event        Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   place        Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
@@ -200,8 +200,8 @@ model Community_Member {
   userId      Int       @map("id_user")
   role        ROLE
   communityId Int       @map("id_community")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  exitAt      DateTime? @map("exit_at")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  exitAt      DateTime? @map("exit_at") @db.Timestamptz
   user        User      @relation(fields: [userId], references: [id])
   community   Community @relation(fields: [communityId], references: [id])
 
@@ -214,7 +214,7 @@ model Report {
   fromId      Int      @map("from_id")
   toId        Int      @map("to_id")
   description String
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   from        User     @relation("ReportsFrom", fields: [fromId], references: [id])
   to          User     @relation("ReportsTo", fields: [toId], references: [id])
 
@@ -225,10 +225,10 @@ model Invitation {
   id             Int       @id @default(autoincrement())
   fromId         Int       @map("from_id")
   toId           Int       @map("to_id")
-  createdAt      DateTime  @default(now()) @map("created_at")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
   status         Status    @default(PENDING)
   placeId        Int       @map("place_id")
-  invitationDate DateTime? @map("invitation_date")
+  invitationDate DateTime? @map("invitation_date") @db.Timestamptz
   eventId        Int?      @map("event_id")
   from           User      @relation("InvitationsFrom", fields: [fromId], references: [id])
   to             User      @relation("InvitationsTo", fields: [toId], references: [id])
@@ -242,7 +242,7 @@ model Request {
   id           Int       @id @default(autoincrement())
   fromId       Int       @map("from_id")
   communityId  Int       @map("community_id")
-  createdAt    DateTime  @default(now()) @map("created_at")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
   status       Status    @default(PENDING)
   acceptedById Int?      @map("accepted_by")
   type         RequestType @default(JOIN)
@@ -260,8 +260,8 @@ model CommunityInvitation {
   invitedUserId Int      @map("invited_user_id")
   invitedById   Int      @map("invited_by_id")
   status        Status   @default(PENDING)
-  createdAt     DateTime @default(now()) @map("created_at")
-  respondedAt   DateTime? @map("responded_at")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  respondedAt   DateTime? @map("responded_at") @db.Timestamptz
   community     Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
   invitedUser   User      @relation("CommunityInvitationUser", fields: [invitedUserId], references: [id], onDelete: Cascade)
   invitedBy     User      @relation("CommunityInvitationBy", fields: [invitedById], references: [id], onDelete: Cascade)
@@ -274,8 +274,8 @@ model Ad {
   id        Int      @id @default(autoincrement())
   placeId   Int      @map("place_id")
   eventId   Int?     @map("event_id")
-  timeBegin DateTime @map("time_begin")
-  timeEnd   DateTime @map("time_end")
+  timeBegin DateTime @map("time_begin") @db.Timestamptz
+  timeEnd   DateTime @map("time_end") @db.Timestamptz
   place     Place    @relation(fields: [placeId], references: [id])
   event     Event?   @relation("AdEvent", fields: [eventId], references: [id])
 
@@ -289,8 +289,8 @@ model Promotion {
   ticketId   Int?          @map("ticket_id")
   membership Membership    @default(NORMAL)
   discount   Int
-  timeBegin  DateTime      @map("time_begin")
-  timeEnd    DateTime?     @map("time_end")
+  timeBegin  DateTime      @map("time_begin") @db.Timestamptz
+  timeEnd    DateTime?     @map("time_end") @db.Timestamptz
   product    Product?      @relation(fields: [productId], references: [id])
   ticket     Ticket?       @relation(fields: [ticketId], references: [id])
 
@@ -301,7 +301,7 @@ model Category {
   id          Int      @id @default(autoincrement())
   name        String   @unique @db.VarChar(100)
   description String?  @db.Text
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   createdBy   Int      @map("created_by")
 
   @@map("Category")
@@ -312,7 +312,7 @@ model Notification {
   userId    Int      @map("user_id")
   title     String   @db.VarChar(255)
   message   String   @db.Text
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   read      Boolean  @default(false)
   user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
 
