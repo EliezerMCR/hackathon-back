@@ -10,3 +10,4 @@ Ambas herramientas respetan la zona horaria configurada por `EVENT_TIMEZONE` y d
 - El asistente solo puede consultar o unirse a eventos de comunidades donde el usuario esté activo. La verificación usa la información de `Community_Member`.
 - Un evento debe tener visibilidad `PUBLIC` y estar asociado a una comunidad para poder unirse automáticamente.
 - Después de actualizar el esquema de Prisma, recuerda ejecutar `npx prisma generate` para exponer los nuevos modelos (`EventAttendee`, `EventVisibility`) al cliente.
+- `get_joined_events`: retorna los eventos futuros en los que el usuario ya está inscrito como asistente, incluyendo hora local, información básica de tickets y reseñas recientes.

@@ -211,3 +211,47 @@ export interface CommunityEventsResult {
   reason?: string;
   details?: any;
 }
+
+export interface JoinedEventSummary {
+  id: number;
+  name: string;
+  timeBegin: string;
+  timeEnd?: string | null;
+  localTimeDescription: string;
+  localEndDescription?: string | null;
+  status: string;
+  visibility: 'PUBLIC' | 'PRIVATE';
+  place?: {
+    id: number;
+    name: string;
+    city?: string | null;
+    country?: string | null;
+  } | null;
+  community?: {
+    id: number;
+    name: string | null;
+  } | null;
+  organizer?: {
+    id: number;
+    name: string | null;
+    lastName: string | null;
+  } | null;
+  ticketInfo?: {
+    requiresPurchase: boolean;
+    lowestPrice?: string;
+  };
+  recentReviews?: Array<{
+    reviewerName: string | null;
+    rating: number;
+    comment: string | null;
+    createdAt: string;
+  }>;
+}
+
+export interface JoinedEventsResult {
+  success: boolean;
+  events: JoinedEventSummary[];
+  message?: string;
+  reason?: string;
+  details?: any;
+}

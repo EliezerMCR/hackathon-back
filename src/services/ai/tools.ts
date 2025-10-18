@@ -17,6 +17,8 @@ import {
   PlaceReview,
   UpcomingEvent,
   EventUpdateResult,
+  JoinedEventsResult,
+  JoinedEventSummary,
 } from './types';
 
 const EVENT_TIMEZONE = process.env.EVENT_TIMEZONE || 'America/Caracas';
@@ -1001,6 +1003,193 @@ export const getUpcomingEventsTool: AITool = {
 };
 
 /**
+ * Tool: List events the authenticated user has joined.
+ */
+export const getJoinedEventsTool: AITool = {
+  name: 'get_joined_events',
+  description:
+    'Lista los eventos a los que el usuario está inscrito como asistente. Úsalo cuando quiera repasar los planes en los que participará.',
+  parameters: {
+    type: 'object',
+    properties: {
+      limit: {
+        type: 'number',
+        description: 'Máximo de eventos a mostrar (por defecto 10, máximo 20).',
+      },
+      daysAhead: {
+        type: 'number',
+        description: 'Cuántos días hacia el futuro se consideran (por defecto 30).',
+      },
+    },
+  },
+  handler: async (
+    params: { limit?: number; daysAhead?: number },
+    userId: number
+  ): Promise<JoinedEventsResult> => {
+    const limit = Math.min(Math.max(params?.limit ?? 10, 1), 20);
+    const daysAhead = params?.daysAhead ?? 30;
+    const now = DateTime.now().setZone(EVENT_TIMEZONE);
+    const maxDate = now.plus({ days: daysAhead });
+
+    const attendances = await prisma.eventAttendee.findMany({
+      where: {
+        userId,
+        event: {
+          timeBegin: {
+            gte: now.toJSDate(),
+            lte: maxDate.toJSDate(),
+          },
+        },
+      },
+      orderBy: {
+        event: {
+          timeBegin: 'asc',
+        },
+      },
+      take: limit,
+      include: {
+        event: {
+          select: {
+            id: true,
+            name: true,
+            timeBegin: true,
+            timeEnd: true,
+            status: true,
+            visibility: true,
+            place: {
+              select: {
+                id: true,
+                name: true,
+                city: true,
+                country: true,
+              },
+            },
+            community: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            organizer: {
+              select: {
+                id: true,
+                name: true,
+                lastName: true,
+              },
+            },
+            tickets: {
+              select: {
+                price: true,
+              },
+            },
+            reviews: {
+              orderBy: { createdAt: 'desc' },
+              take: 3,
+              select: {
+                calification: true,
+                comment: true,
+                createdAt: true,
+                user: {
+                  select: {
+                    name: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const events: JoinedEventSummary[] = attendances
+      .map(attendance => attendance.event)
+      .filter((event): event is NonNullable<typeof event> => Boolean(event))
+      .map(event => {
+        const localBegin = DateTime.fromJSDate(event.timeBegin).setZone(EVENT_TIMEZONE);
+        const localEnd = event.timeEnd
+          ? DateTime.fromJSDate(event.timeEnd).setZone(EVENT_TIMEZONE)
+          : null;
+
+        const priceNumbers =
+          event.tickets?.map(ticket => decimalToNumber(ticket.price)).filter(price => Number.isFinite(price) && price > 0) ?? [];
+        const lowestPriceNumber = priceNumbers.length > 0 ? Math.min(...priceNumbers) : undefined;
+        const ticketInfo =
+          (event.tickets?.length ?? 0) > 0
+            ? {
+                requiresPurchase: true,
+                lowestPrice:
+                  lowestPriceNumber !== undefined && Number.isFinite(lowestPriceNumber)
+                    ? lowestPriceNumber.toFixed(2)
+                    : undefined,
+              }
+            : { requiresPurchase: false };
+
+        const recentReviews =
+          event.reviews?.map(review => ({
+            reviewerName: [review.user?.name, review.user?.lastName].filter(Boolean).join(' ') || null,
+            rating: review.calification,
+            comment: sanitizeComment(review.comment),
+            createdAt: review.createdAt.toISOString(),
+          })) ?? [];
+
+        return {
+          id: event.id,
+          name: event.name,
+          timeBegin: event.timeBegin.toISOString(),
+          timeEnd: event.timeEnd ? event.timeEnd.toISOString() : null,
+          localTimeDescription: localBegin.toFormat('cccc d LLL yyyy, hh:mm a'),
+          localEndDescription: localEnd ? localEnd.toFormat('cccc d LLL yyyy, hh:mm a') : null,
+          status: event.status,
+          visibility: event.visibility,
+          place: event.place
+            ? {
+                id: event.place.id,
+                name: event.place.name,
+                city: event.place.city,
+                country: event.place.country,
+              }
+            : null,
+          community: event.community
+            ? {
+                id: event.community.id,
+                name: event.community.name,
+              }
+            : null,
+          organizer: event.organizer
+            ? {
+                id: event.organizer.id,
+                name: event.organizer.name,
+                lastName: event.organizer.lastName,
+              }
+            : null,
+          ticketInfo,
+          recentReviews,
+        };
+      });
+
+    if (events.length === 0) {
+      return {
+        success: true,
+        events: [],
+        message: 'No estás inscrito en eventos durante los próximos días.',
+      };
+    }
+
+    const summaryLines = events.map(event => {
+      const placeInfo = event.place?.city ? ` en ${event.place.city}` : '';
+      return `${event.name}${placeInfo}: comienza ${event.localTimeDescription}.`;
+    });
+
+    return {
+      success: true,
+      events,
+      message: ['Próximos eventos en los que participas:'].concat(summaryLines).join('\n'),
+    };
+  },
+};
+
+/**
  * Tool: List events for a community the user belongs to.
  */
 export const getCommunityEventsTool: AITool = {
@@ -1564,6 +1753,7 @@ export const availableTools: AITool[] = [
   getAvailablePlacesTool,
   getPlaceReviewsTool,
   getUpcomingEventsTool,
+  getJoinedEventsTool,
   getCommunityEventsTool,
   joinCommunityEventTool,
   updateEventTool,
