@@ -11,3 +11,5 @@ Ambas herramientas respetan la zona horaria configurada por `EVENT_TIMEZONE` y d
 - Un evento debe tener visibilidad `PUBLIC` y estar asociado a una comunidad para poder unirse automáticamente.
 - Después de actualizar el esquema de Prisma, recuerda ejecutar `npx prisma generate` para exponer los nuevos modelos (`EventAttendee`, `EventVisibility`) al cliente.
 - `get_joined_events`: retorna los eventos futuros en los que el usuario ya está inscrito como asistente, incluyendo hora local, información básica de tickets y reseñas recientes.
+- `get_user_communities`: Lista las comunidades a las que pertenece el usuario autenticado, devolviendo ID, rol, miembros y eventos.
+- `get_community_overview`: Devuelve un resumen de una comunidad (nombre, miembros, eventos próximos, administradores) y confirma si el usuario forma parte.

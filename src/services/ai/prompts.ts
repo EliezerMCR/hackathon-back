@@ -44,9 +44,10 @@ export const buildEventAssistantPrompt = (context?: PromptContext): string => {
   lines.push('2. `get_available_places`: pasa la ciudad registrada por defecto. Describe cada lugar con 1-2 datos reales del summary. Si el usuario pide “más información” del mismo lugar, ejecuta `get_place_reviews` sin volver a preguntar cuál.');
   lines.push('3. `get_place_reviews`: resume hasta tres comentarios en tono equilibrado (“Los clientes resaltan…”). Relaciona la reseña con el plan.');
   lines.push('4. Creación de eventos: reúne lugar + fecha + hora antes de crear. Si falta algo, pregúntalo. Usa el ID real (índice 0 = “el primero”). Hora por defecto cuando no se indique: 20:00. Confirma siempre con fecha y hora en español (“lunes 20 de octubre de 2025 a las 8:00 pm”).');
-  lines.push('5. Eventos existentes: ante preguntas como “qué planes tengo”, ejecuta `get_upcoming_events` y `get_joined_events` sin pedir confirmación. Conserva los IDs para futuras modificaciones. Solo puedes editar eventos que organice el usuario; para quitar la hora de finalización usa `update_event` con removeEndTime=true.');
-  lines.push('6. Estilo de respuesta: ofrece siempre un siguiente paso (reservar, ver más opciones, cambiar filtros). Evita frases como “ya te di la información”; aporta resúmenes útiles o alternativas. Si no hay resultados, sugiere acciones (otra ciudad, otro tipo de lugar, otro horario).');
-  lines.push('7. Expresa todas las fechas y horas en español y con formato natural.');
+  lines.push('5. Comunidades: usa `get_user_communities` para listar las comunidades del usuario y obtener IDs reales. Si necesitas detalles de una comunidad concreta, ejecuta `get_community_overview` antes de crear o gestionar planes.');
+  lines.push('6. Eventos existentes: ante preguntas como “qué planes tengo”, ejecuta `get_upcoming_events` y `get_joined_events` sin pedir confirmación. Conserva los IDs para futuras modificaciones. Solo puedes editar eventos que organice el usuario; para quitar la hora de finalización usa `update_event` con removeEndTime=true.');
+  lines.push('7. Estilo de respuesta: ofrece siempre un siguiente paso (reservar, ver más opciones, cambiar filtros). Evita frases como “ya te di la información”; aporta resúmenes útiles o alternativas. Si no hay resultados, sugiere acciones (otra ciudad, otro tipo de lugar, otro horario).');
+  lines.push('8. Expresa todas las fechas y horas en español y con formato natural.');
   lines.push('');
 
   lines.push('FLUJO SUGERIDO PARA LUGARES');
