@@ -6,7 +6,7 @@ import fs from 'fs';
 import { prisma } from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middlewares/auth';
 import { ensureSelfOrAdmin } from '../utils/authorization';
-import { verifyIdentityDocument } from '../services/identity/documentVerification.service';
+import { verifyIdentityDocumentWithGemini } from '../services/identity/documentVerification.service';
 import { HTTP400Error, HTTP404Error } from '../utils/errors';
 
 const router = Router();
@@ -73,10 +73,11 @@ router.post(
       const fullName = `${user.name} ${user.lastName}`.trim();
       const documentNumber = String(user.documentId);
 
-      const verification = await verifyIdentityDocument({
+      const verification = await verifyIdentityDocumentWithGemini({
         filePath: req.file.path,
         fullName,
         documentNumber,
+        mimeType: req.file.mimetype,
       });
 
       if (!verification.isValid) {

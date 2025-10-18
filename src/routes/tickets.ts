@@ -1,13 +1,16 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { authenticate, AuthRequest } from '../middlewares/auth';
+import { ensureSelfOrAdmin } from '../utils/authorization';
+import { HTTP403Error } from '../utils/errors';
 
 const router = Router();
 
 // ==================== VALIDATION SCHEMAS ====================
 
 const buyTicketSchema = z.object({
-  userId: z.number().int().positive(),
+  userId: z.number().int().positive().optional(),
   ticketId: z.number().int().positive(),
   quantity: z.number().int().positive().min(1).default(1),
 });
@@ -144,7 +147,7 @@ router.get('/bought/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/tickets/buy - Buy ticket(s)
-router.post('/buy', async (req: Request, res: Response) => {
+router.post('/buy', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const validation = buyTicketSchema.safeParse(req.body);
     
@@ -157,9 +160,17 @@ router.post('/buy', async (req: Request, res: Response) => {
 
     const { userId, ticketId, quantity } = validation.data;
 
+    if (!req.user) {
+      return next(new HTTP403Error('Authentication required'));
+    }
+
+    const purchaserId = userId ?? req.user.userId;
+
+    ensureSelfOrAdmin(req.user, purchaserId);
+
     // Verify user exists
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: purchaserId },
     });
 
     if (!user) {
@@ -215,7 +226,7 @@ router.post('/buy', async (req: Request, res: Response) => {
       for (let i = 0; i < quantity; i++) {
         const purchase = await tx.bought_Ticket.create({
           data: {
-            userId,
+            userId: purchaserId,
             ticketId,
             price: ticket.price,
           },
@@ -259,12 +270,12 @@ router.post('/buy', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Ticket not found' });
     }
     
-    res.status(500).json({ error: 'Failed to buy ticket' });
+    next(error);
   }
 });
 
 // DELETE /api/tickets/bought/:id - Cancel/Refund bought ticket
-router.delete('/bought/:id', async (req: Request, res: Response) => {
+router.delete('/bought/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const boughtTicketId = parseInt(id, 10);
@@ -292,6 +303,14 @@ router.delete('/bought/:id', async (req: Request, res: Response) => {
 
     if (!boughtTicket) {
       return res.status(404).json({ error: 'Bought ticket not found' });
+    }
+
+    if (!req.user) {
+      return next(new HTTP403Error('Authentication required'));
+    }
+
+    if (req.user.role !== 'ADMIN' && boughtTicket.userId !== req.user.userId) {
+      return next(new HTTP403Error('You are not allowed to refund this ticket'));
     }
 
     // Check if event hasn't started yet (allow refund only before event)
@@ -332,7 +351,7 @@ router.delete('/bought/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Bought ticket not found' });
     }
     
-    res.status(500).json({ error: 'Failed to refund ticket' });
+    next(error);
   }
 });
 

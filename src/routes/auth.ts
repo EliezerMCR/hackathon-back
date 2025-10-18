@@ -13,7 +13,7 @@ import { loginSchema, signupSchema, signupWithPrivilegeSchema, forgotPasswordSch
 import { HTTP401Error, HTTP409Error, HTTP400Error } from '../utils/errors';
 import { sendEmail } from '../utils/email';
 import { saveBase64ImageToTempFile } from '../services/identity/helpers';
-import { verifyIdentityDocument, DocumentVerificationResult } from '../services/identity/documentVerification.service';
+import { verifyIdentityDocumentWithGemini, DocumentVerificationResult } from '../services/identity/documentVerification.service';
 
 const router = Router();
 const upload = multer();
@@ -43,10 +43,11 @@ const verifyDocument = async ({
 
     let verification: DocumentVerificationResult;
     try {
-      verification = await verifyIdentityDocument({
+      verification = await verifyIdentityDocumentWithGemini({
         filePath: tempFile.filePath,
         fullName,
         documentNumber: documentNumber.toString(),
+        mimeType: tempFile.mimeType,
       });
       console.log('--- [VERIFY DOCUMENT] verification result:', verification);
     } catch (error) {

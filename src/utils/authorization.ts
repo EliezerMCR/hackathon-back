@@ -57,6 +57,8 @@ export const ensureCanManageEvent = async (user: AuthUser | undefined, eventId: 
       id: true,
       organizerId: true,
       placeId: true,
+      communityId: true,
+      visibility: true,
       place: {
         select: {
           ownerId: true,

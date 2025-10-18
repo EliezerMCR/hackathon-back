@@ -1,13 +1,14 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { authenticate, AuthRequest } from '../middlewares/auth';
+import { ensureSelfOrAdmin } from '../utils/authorization';
 
 const router = Router();
 
 // ==================== VALIDATION SCHEMAS ====================
 
 const createReviewSchema = z.object({
-  userId: z.number().int().positive(),
   placeId: z.number().int().positive(),
   eventId: z.number().int().positive().optional(),
   calification: z.number().int().min(1).max(5),
@@ -209,7 +210,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/reviews - Create new review
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const validation = createReviewSchema.safeParse(req.body);
 
@@ -220,13 +221,8 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    const { userId, placeId, eventId, calification, comment } = validation.data;
-
-    // Verify user exists
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const { placeId, eventId, calification, comment } = validation.data;
+    const userId = req.user!.userId;
 
     // Verify place exists
     const place = await prisma.place.findUnique({ where: { id: placeId } });
@@ -280,12 +276,12 @@ router.post('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error creating review:', error);
-    res.status(500).json({ error: 'Failed to create review' });
+    next(error);
   }
 });
 
 // PUT /api/reviews/:id - Update review
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const reviewId = parseInt(id, 10);
@@ -302,6 +298,17 @@ router.put('/:id', async (req: Request, res: Response) => {
         details: validation.error.errors,
       });
     }
+
+    const existingReview = await prisma.review.findUnique({
+      where: { id: reviewId },
+      select: { userId: true },
+    });
+
+    if (!existingReview) {
+      return res.status(404).json({ error: 'Review not found' });
+    }
+
+    ensureSelfOrAdmin(req.user, existingReview.userId);
 
     const review = await prisma.review.update({
       where: { id: reviewId },
@@ -331,12 +338,12 @@ router.put('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Review not found' });
     }
 
-    res.status(500).json({ error: 'Failed to update review' });
+    next(error);
   }
 });
 
 // DELETE /api/reviews/:id - Delete review
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const reviewId = parseInt(id, 10);
@@ -344,6 +351,20 @@ router.delete('/:id', async (req: Request, res: Response) => {
     if (isNaN(reviewId)) {
       return res.status(400).json({ error: 'Invalid review ID' });
     }
+
+    const existingReview = await prisma.review.findUnique({
+      where: { id: reviewId },
+      select: {
+        id: true,
+        userId: true,
+      },
+    });
+
+    if (!existingReview) {
+      return res.status(404).json({ error: 'Review not found' });
+    }
+
+    ensureSelfOrAdmin(req.user, existingReview.userId);
 
     const deleted = await prisma.review.delete({
       where: { id: reviewId },
@@ -362,7 +383,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Review not found' });
     }
 
-    res.status(500).json({ error: 'Failed to delete review' });
+    next(error);
   }
 });
 

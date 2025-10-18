@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { ROLE } from '@prisma/client';
+import { EventVisibility, ROLE } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middlewares/auth';
@@ -19,6 +19,7 @@ const createEventSchema = z.object({
   communityId: z.number().int().positive().optional(),
   minAge: z.number().int().min(0).max(100).default(18),
   externalUrl: z.string().url().optional(),
+  visibility: z.enum(['PUBLIC', 'PRIVATE']).default('PRIVATE'),
 });
 
 const updateEventSchema = z.object({
@@ -29,6 +30,7 @@ const updateEventSchema = z.object({
   minAge: z.number().int().min(0).max(100).optional(),
   status: z.string().max(20).optional(),
   externalUrl: z.string().url().optional(),
+  visibility: z.enum(['PUBLIC', 'PRIVATE']).optional(),
 });
 
 // ==================== EVENTS CRUD ====================
@@ -41,6 +43,7 @@ router.get('/', async (req: Request, res: Response) => {
       communityId,
       organizerId,
       status,
+      visibility,
       minAge,
       timeBegin,
       timeEnd,
@@ -79,6 +82,10 @@ router.get('/', async (req: Request, res: Response) => {
       where.status = status;
     }
 
+    if (visibility && (visibility === 'PUBLIC' || visibility === 'PRIVATE')) {
+      where.visibility = visibility;
+    }
+
     if (minAge) {
       const minAgeNum = parseInt(minAge as string, 10);
       if (!isNaN(minAgeNum)) {
@@ -86,12 +93,24 @@ router.get('/', async (req: Request, res: Response) => {
       }
     }
 
+    const timeFilters: { gte?: Date; lte?: Date } = {};
+
     if (timeBegin) {
-      where.timeBegin = { gte: new Date(timeBegin as string) };
+      const beginDate = new Date(timeBegin as string);
+      if (!Number.isNaN(beginDate.getTime())) {
+        timeFilters.gte = beginDate;
+      }
     }
 
     if (timeEnd) {
-      where.timeBegin = { lte: new Date(timeEnd as string) };
+      const endDate = new Date(timeEnd as string);
+      if (!Number.isNaN(endDate.getTime())) {
+        timeFilters.lte = endDate;
+      }
+    }
+
+    if (Object.keys(timeFilters).length > 0) {
+      where.timeBegin = timeFilters;
     }
 
     const [events, total] = await Promise.all([
@@ -130,6 +149,7 @@ router.get('/', async (req: Request, res: Response) => {
               tickets: true,
               reviews: true,
               invitations: true,
+              attendees: true,
             },
           },
         },
@@ -229,11 +249,24 @@ router.get('/:id', async (req: Request, res: Response) => {
             createdAt: 'desc',
           },
         },
+        attendees: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                lastName: true,
+                image: true,
+              },
+            },
+          },
+        },
         _count: {
           select: {
             tickets: true,
             reviews: true,
             invitations: true,
+            attendees: true,
           },
         },
       },
@@ -262,7 +295,15 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
       });
     }
 
-    const { placeId, organizerId, communityId, timeBegin, timeEnd, ...eventData } =
+    const {
+      placeId,
+      organizerId,
+      communityId,
+      timeBegin,
+      timeEnd,
+      visibility,
+      ...eventData
+    } =
       validation.data;
 
     const actor = ensureRole(req.user, [ROLE.ADMIN, ROLE.MARKET]);
@@ -280,6 +321,12 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
 
     if (!organizer) {
       return res.status(404).json({ error: 'Organizer user not found' });
+    }
+
+    if (visibility === 'PUBLIC' && !communityId) {
+      return res
+        .status(400)
+        .json({ error: 'A public event must be associated with a community' });
     }
 
     if (communityId) {
@@ -301,6 +348,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
         organizerId,
         communityId,
         status: 'proximo',
+        visibility,
       },
       include: {
         place: {
@@ -346,7 +394,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
       return res.status(400).json({ error: 'Invalid event ID' });
     }
 
-    await ensureCanManageEvent(req.user, eventId);
+    const managedEvent = await ensureCanManageEvent(req.user, eventId);
 
     const validation = updateEventSchema.safeParse(req.body);
 
@@ -362,6 +410,12 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
     }
 
     const { timeBegin, timeEnd, ...rest } = validation.data;
+
+    if (rest.visibility === 'PUBLIC' && !managedEvent.communityId) {
+      return res
+        .status(400)
+        .json({ error: 'A public event must belong to a community' });
+    }
 
     const updateData: any = { ...rest };
 
@@ -402,6 +456,90 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
       return res.status(404).json({ error: 'Event not found' });
     }
 
+    next(error);
+  }
+});
+
+// POST /api/events/:id/join - Join a public community event
+router.post('/:id/join', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const eventId = parseInt(id, 10);
+
+    if (isNaN(eventId)) {
+      return res.status(400).json({ error: 'Invalid event ID' });
+    }
+
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: {
+        id: true,
+        visibility: true,
+        communityId: true,
+        status: true,
+      },
+    });
+
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    if (event.visibility !== EventVisibility.PUBLIC) {
+      return res.status(403).json({ error: 'This event is not open for public joining' });
+    }
+
+    if (!event.communityId) {
+      return res.status(403).json({ error: 'This event is private' });
+    }
+
+    if (['finalizado', 'cancelado'].includes(event.status)) {
+      return res.status(400).json({ error: 'Cannot join an event that is not active' });
+    }
+
+    const userId = req.user!.userId;
+
+    const membership = await prisma.community_Member.findUnique({
+      where: {
+        userId_communityId: {
+          userId,
+          communityId: event.communityId,
+        },
+      },
+      select: {
+        exitAt: true,
+      },
+    });
+
+    if (!membership || membership.exitAt) {
+      return res.status(403).json({ error: 'You must belong to the community to join this event' });
+    }
+
+    const existingAttendance = await prisma.eventAttendee.findUnique({
+      where: {
+        eventId_userId: {
+          eventId: event.id,
+          userId,
+        },
+      },
+    });
+
+    if (existingAttendance) {
+      return res.status(200).json({ message: 'Already joined this event' });
+    }
+
+    const attendance = await prisma.eventAttendee.create({
+      data: {
+        eventId: event.id,
+        userId,
+      },
+    });
+
+    res.status(201).json({
+      message: 'Te has unido al evento correctamente',
+      attendance,
+    });
+  } catch (error) {
+    console.error('Error joining event:', error);
     next(error);
   }
 });

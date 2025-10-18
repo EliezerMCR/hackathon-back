@@ -1,11 +1,21 @@
 import { Router, Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
 import { authenticate, authorize } from '../middlewares/auth';
 import { validate } from '../middlewares/validation';
-import { updateUserSchema } from '../schemas/userSchemas';
+import { updateUserSchema, updateUserSelfSchema } from '../schemas/userSchemas';
 import { HTTP404Error, HTTP409Error } from '../utils/errors';
 
 const router = Router();
+
+const sanitizeUser = (user: any) => {
+  if (!user) {
+    return null;
+  }
+
+  const { password, passwordResetToken, ...safeUser } = user;
+  return safeUser;
+};
 
 router.get('/me', authenticate, async (req: any, res: any, next) => {
   try {
@@ -17,9 +27,7 @@ router.get('/me', authenticate, async (req: any, res: any, next) => {
       return next(new HTTP404Error('User not found'));
     }
 
-    const { id, ...userWithoutPassword } = user;
-    
-    res.json(userWithoutPassword);
+    res.json(sanitizeUser(user));
   } catch (error) {
     next(error);
   }
@@ -60,6 +68,53 @@ router.get('/me/events', authenticate, async (req: any, res: any, next) => {
     });
 
     res.json(events);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get events the authenticated user has joined
+router.get('/me/events/joined', authenticate, async (req: any, res: any, next) => {
+  try {
+    const userId = req.user.userId;
+
+    const attendances = await prisma.eventAttendee.findMany({
+      where: { userId },
+      include: {
+        event: {
+          include: {
+            place: {
+              select: {
+                id: true,
+                name: true,
+                city: true,
+                country: true,
+                image: true,
+              },
+            },
+            community: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            organizer: {
+              select: {
+                id: true,
+                name: true,
+                lastName: true,
+                image: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        joinedAt: 'desc',
+      },
+    });
+
+    res.json(attendances);
   } catch (error) {
     next(error);
   }
@@ -274,14 +329,20 @@ router.get('/me/notifications', authenticate, async (req: any, res: any, next) =
   }
 });
 
-router.put('/me', authenticate, validate(updateUserSchema), async (req: any, res: any, next) => {
+router.put('/me', authenticate, validate(updateUserSelfSchema), async (req: any, res: any, next) => {
   try {
+    const updates: any = { ...req.body };
+
+    if (updates.password) {
+      updates.password = await bcrypt.hash(updates.password, 10);
+    }
+
     const user = await prisma.user.update({
       where: { id: req.user.userId },
-      data: req.body,
+      data: updates,
     });
 
-    res.json(user);
+    res.json(sanitizeUser(user));
   } catch (error: any) {
     if (error.code === 'P2025') {
       return next(new HTTP404Error('User not found'));
@@ -313,7 +374,7 @@ router.get('/', authenticate, async (req: any, res: any, next) => {
     const requesterRole = req.user?.role;
     if (requesterRole === 'ADMIN') {
       const users = await prisma.user.findMany();
-      return res.json(users);
+      return res.json(users.map(sanitizeUser));
     }
     // public view for non-admins
     const publicUsers = await prisma.user.findMany({
@@ -348,7 +409,7 @@ router.get('/:id', authenticate, async (req: any, res: any, next) => {
     if (requesterRole === 'ADMIN') {
       const user = await prisma.user.findUnique({ where: { id: requestedId } });
       if (!user) return next(new HTTP404Error('User not found'));
-      return res.json(user);
+      return res.json(sanitizeUser(user));
     }
 
     // public view for non-admins
@@ -547,12 +608,22 @@ router.get('/:id/invitations', authenticate, async (req: any, res: any, next) =>
 router.put('/:id', authenticate, authorize(['ADMIN']), validate(updateUserSchema), async (req: any, res: any, next) => {
   try {
     const { id } = req.params;
+    const updates: any = { ...req.body };
+
+    if (updates.password) {
+      updates.password = await bcrypt.hash(updates.password, 10);
+    }
+
+    if (updates.birthDate) {
+      updates.birthDate = new Date(updates.birthDate);
+    }
+
     const user = await prisma.user.update({
       where: { id: parseInt(id) },
-      data: req.body,
+      data: updates,
     });
 
-    res.json(user);
+    res.json(sanitizeUser(user));
   } catch (error: any) {
     if (error.code === 'P2025') {
       return next(new HTTP404Error('User not found'));

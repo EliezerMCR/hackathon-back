@@ -1,5 +1,7 @@
 import Tesseract from 'tesseract.js';
 import { stripDiacritics } from './helpers';
+import { GeminiClient } from '../ai/gemini-client';
+import fs from 'fs/promises';
 
 export interface DocumentVerificationResult {
   text: string;
@@ -18,6 +20,7 @@ export interface VerifyDocumentParams {
   fullName: string;
   documentNumber: string;
   language?: string;
+  mimeType?: string;
 }
 
 const DEFAULT_LANGUAGE = 'spa+eng';
@@ -177,5 +180,73 @@ export const verifyIdentityDocument = async ({
     bestDocumentCandidate,
     documentDistance,
     matchedVariant,
+  };
+};
+
+export const verifyIdentityDocumentWithGemini = async ({
+  filePath,
+  fullName,
+  documentNumber,
+  mimeType = 'image/jpeg',
+}: VerifyDocumentParams): Promise<DocumentVerificationResult> => {
+  const geminiClient = new GeminiClient();
+  const model = geminiClient.getModel();
+
+  const prompt = `
+Eres un asistente de validación de identidad. Tu tarea es analizar la imagen de un documento de identidad y verificar si los datos coinciden con la información proporcionada.
+
+Información del usuario:
+- Nombre completo: ${fullName}
+- Número de documento: ${documentNumber}
+
+Analiza la imagen adjunta y responde en formato JSON con la siguiente estructura:
+{
+  "nameMatches": boolean, // true si el nombre en el documento coincide con el nombre proporcionado
+  "documentMatches": boolean, // true si el número de documento coincide con el número proporcionado
+  "extractedName": string, // El nombre completo extraído del documento
+  "extractedDocumentNumber": string, // El número de documento extraído del documento
+  "isValid": boolean // true si tanto el nombre como el número de documento coinciden
+}
+
+Si no puedes encontrar el nombre o el número de documento, los campos correspondientes en el JSON deben ser null.
+  `;
+
+  const imageBuffer = await fs.readFile(filePath);
+  const imageBase64 = imageBuffer.toString('base64');
+
+  const imagePart = {
+    inlineData: {
+      data: imageBase64,
+      mimeType,
+    },
+  };
+
+  const result = await model.generateContent([prompt, imagePart]);
+  const responseText = result.response.text();
+  const jsonResponse = JSON.parse(responseText.replace(/```json|```/g, '').trim());
+  // Normalize extracted document number (remove dots and non-digits) before comparing
+  const extractedRaw: string | null = jsonResponse.extractedDocumentNumber ?? null;
+  const extractedDigits = extractedRaw ? normalizeDigits(String(extractedRaw)) : '';
+  const expectedDigits = normalizeDigits(documentNumber);
+
+  // Determine document match based on digits-only equality (or inclusion as fallback)
+  let documentMatches = false;
+  if (extractedDigits && expectedDigits) {
+    documentMatches = extractedDigits === expectedDigits || extractedDigits.includes(expectedDigits) || expectedDigits.includes(extractedDigits);
+  }
+
+  const nameMatches = Boolean(jsonResponse.nameMatches);
+  const isValid = nameMatches && documentMatches;
+
+  return {
+    text: responseText,
+    normalizedText: '',
+    nameMatches,
+    documentMatches,
+    isValid,
+    missingNameTokens: [],
+    // debugging helpers
+    bestDocumentCandidate: extractedDigits || undefined,
+    matchedVariant: extractedRaw || undefined,
   };
 };
