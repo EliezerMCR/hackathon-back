@@ -104,6 +104,7 @@ export interface UserContext {
   lastName?: string | null;
   lastEventDate?: Date | null;
   lastPlaceName?: string | null;
+  city?: string | null;
 }
 
 export interface UpcomingEvent {

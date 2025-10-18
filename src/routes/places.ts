@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authenticate, authorize } from '../middlewares/auth';
 import { HTTP403Error, HTTP404Error } from '../utils/errors';
+import { processImages } from '../middlewares/imageProcessor';
+import { deleteImage } from '../utils/blob-storage';
 
 const router = Router();
 
@@ -52,7 +54,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
     const where: any = {};
 
     if (city) {
-      where.city = { contains: city as string, mode: 'insensitive' };
+     where.city = { contains: city as string, mode: 'insensitive' };
     }
     if (country) {
       where.country = { contains: country as string, mode: 'insensitive' };
@@ -183,7 +185,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
 });
 
 // POST /api/places - Create new place
-router.post('/', authenticate, authorize(['ADMIN', 'MARKET']), async (req: Request & { user?: any }, res: Response, next: NextFunction) => {
+router.post('/', authenticate, authorize(['ADMIN', 'MARKET']), processImages(['image']), async (req: Request & { user?: any }, res: Response, next: NextFunction) => {
   try {
     const validation = createPlaceSchema.safeParse(req.body);
 
@@ -235,7 +237,7 @@ router.post('/', authenticate, authorize(['ADMIN', 'MARKET']), async (req: Reque
 });
 
 // PUT /api/places/:id - Update place
-router.put('/:id', authenticate, async (req: Request & { user?: any }, res: Response, next: NextFunction) => {
+router.put('/:id', authenticate, processImages(['image']), async (req: Request & { user?: any }, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const placeId = parseInt(id, 10);
@@ -244,7 +246,10 @@ router.put('/:id', authenticate, async (req: Request & { user?: any }, res: Resp
       return res.status(400).json({ error: 'Invalid place ID' });
     }
 
-    const existingPlace = await prisma.place.findUnique({ where: { id: placeId } });
+    const existingPlace = await prisma.place.findUnique({ 
+      where: { id: placeId },
+      select: { id: true, ownerId: true, image: true }
+    });
     if (!existingPlace) {
       return next(new HTTP404Error('Place not found'));
     }
@@ -276,6 +281,11 @@ router.put('/:id', authenticate, async (req: Request & { user?: any }, res: Resp
         },
       },
     });
+
+    // Delete old image if a new one was uploaded
+    if (validation.data.image && existingPlace.image && validation.data.image !== existingPlace.image) {
+      await deleteImage(existingPlace.image);
+    }
 
     res.json(place);
   } catch (error) {

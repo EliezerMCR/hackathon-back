@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middlewares/auth';
 import { ensureCanManagePlace, ensureCanManageProduct } from '../utils/authorization';
+import { processImages } from '../middlewares/imageProcessor';
+import { deleteImage } from '../utils/blob-storage';
 
 const router = Router();
 
@@ -121,7 +123,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
 });
 
 // POST /api/products - Create new product
-router.post('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticate, processImages(['image']), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const validation = createProductSchema.safeParse(req.body);
 
@@ -163,13 +165,22 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
 });
 
 // PUT /api/products/:id - Update product
-router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put('/:id', authenticate, processImages(['image']), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const productId = parseInt(id, 10);
 
     if (isNaN(productId)) {
       return res.status(400).json({ error: 'Invalid product ID' });
+    }
+
+    const existingProduct = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, placeId: true, image: true }
+    });
+
+    if (!existingProduct) {
+      return res.status(404).json({ error: 'Product not found' });
     }
 
     await ensureCanManageProduct(req.user, productId);
@@ -196,6 +207,11 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
         },
       },
     });
+
+    // Delete old image if a new one was uploaded
+    if (validation.data.image && existingProduct.image && validation.data.image !== existingProduct.image) {
+      await deleteImage(existingProduct.image);
+    }
 
     res.json(product);
   } catch (error: any) {

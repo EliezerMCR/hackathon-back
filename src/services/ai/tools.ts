@@ -338,14 +338,14 @@ const generatePlaceSummary = (place: {
 export const getAvailablePlacesTool: AITool = {
   name: 'get_available_places',
   description:
-    'Get a list of available places/venues where events can be created. IMPORTANT: City is REQUIRED - you must always ask the user for their city before calling this function. Returns multiple options for the user to choose from.',
+    'Obtiene lugares/venues disponibles para crear eventos. IMPORTANTE: Si el usuario tiene ciudad registrada en su perfil, DEBES pasarla aquí automáticamente en el parámetro "city". Solo pregunta por ciudad si el usuario NO tiene ciudad registrada o menciona explícitamente otra ciudad.',
   parameters: {
     type: 'object',
     properties: {
       city: {
         type: 'string',
         description:
-          "REQUIRED: The city where to search for places. You MUST ask the user for their city if they haven't provided it yet.",
+          'Ciudad donde buscar lugares. COMPORTAMIENTO: (1) Si usuario tiene ciudad registrada → úsala automáticamente, (2) Si NO tiene ciudad registrada → la herramienta lanzará error, (3) Si usuario menciona otra ciudad → usa esa. Ejemplos: "Caracas", "Valencia", "Maracaibo"',
       },
       type: {
         type: 'string',
@@ -361,23 +361,40 @@ export const getAvailablePlacesTool: AITool = {
           'Number of results to return. Default is 10 to give user good options to choose from.',
       },
     },
-    required: ['city'],
+    required: [],
   },
-  handler: async (params: {
-    city?: string;
-    type?: string;
-    minCapacity?: number;
-    limit?: number;
-  }): Promise<AvailablePlace[]> => {
-    const { city, type, minCapacity, limit = 10 } = params;
+  handler: async (
+    params: {
+      city?: string;
+      type?: string;
+      minCapacity?: number;
+      limit?: number;
+    },
+    userId: number
+  ): Promise<AvailablePlace[]> => {
+    let { city, type, minCapacity, limit = 10 } = params;
+
+    let effectiveCity = city?.trim();
+
+    if (!effectiveCity) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { city: true },
+      });
+      effectiveCity = user?.city?.trim();
+    }
+
+    if (!effectiveCity) {
+      throw new Error('ERROR CRÍTICO: No se puede buscar lugares sin ciudad. El usuario NO tiene ciudad registrada en su perfil y NO proporcionaste el parámetro "city". ACCIÓN REQUERIDA: Pregunta al usuario "¿En qué ciudad quieres el evento?" y luego vuelve a llamar get_available_places con el parámetro city.');
+    }
 
     const where: any = {
       status: 'ACCEPTED',
     };
 
-    if (city) {
+    if (effectiveCity) {
       where.city = {
-        contains: city,
+        contains: effectiveCity,
         mode: 'insensitive',
       };
     }
@@ -449,6 +466,11 @@ const decimalToNumber = (value: any): number => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 };
+
+const formatDateTimeEs = (date: DateTime): string =>
+  date.setLocale('es').toFormat("cccc d 'de' LLLL yyyy, hh:mm a");
+
+const formatTimeEs = (date: DateTime): string => date.setLocale('es').toFormat('hh:mm a');
 
 const toneFromRating = (rating: number): 'positive' | 'neutral' | 'negative' => {
   if (rating >= 4) return 'positive';
@@ -775,8 +797,8 @@ export const createEventTool: AITool = {
       const localTime = eventDate.setZone(EVENT_TIMEZONE);
       const localEnd = timeEndUtc.setZone(EVENT_TIMEZONE);
 
-      const localTimeDescription = localTime.toFormat('cccc d LLL yyyy, hh:mm a');
-      const localEndDescription = localEnd.toFormat('cccc d LLL yyyy, hh:mm a');
+      const localTimeDescription = formatDateTimeEs(localTime);
+      const localEndDescription = formatDateTimeEs(localEnd);
 
       return {
         success: true,
@@ -922,8 +944,8 @@ export const getUpcomingEventsTool: AITool = {
         event.timeBegin.toISOString();
 
       const localDescription = localTime.isValid
-        ? localTime.toFormat('cccc d LLL yyyy, hh:mm a')
-        : DateTime.fromJSDate(event.timeBegin).toFormat('cccc d LLL yyyy, hh:mm a');
+        ? formatDateTimeEs(localTime)
+        : formatDateTimeEs(DateTime.fromJSDate(event.timeBegin).setZone(EVENT_TIMEZONE));
 
       const timeEndIso =
         (localEnd && localEnd.isValid && localEnd.toISO()) ||
@@ -931,11 +953,9 @@ export const getUpcomingEventsTool: AITool = {
 
       const localEndDescription =
         localEnd && localEnd.isValid
-          ? localEnd.toFormat('hh:mm a')
+          ? formatTimeEs(localEnd)
           : event.timeEnd
-            ? DateTime.fromJSDate(event.timeEnd)
-                .setZone(EVENT_TIMEZONE)
-                .toFormat('hh:mm a')
+            ? formatTimeEs(DateTime.fromJSDate(event.timeEnd).setZone(EVENT_TIMEZONE))
             : null;
 
       const priceNumbers =
@@ -1365,8 +1385,8 @@ export const getCommunityEventsTool: AITool = {
         description: event.description,
         timeBegin: event.timeBegin.toISOString(),
         timeEnd: event.timeEnd ? event.timeEnd.toISOString() : null,
-        localTimeDescription: localBegin.toFormat('cccc d LLL yyyy, hh:mm a'),
-        localEndDescription: localEnd ? localEnd.toFormat('cccc d LLL yyyy, hh:mm a') : null,
+        localTimeDescription: formatDateTimeEs(localBegin),
+        localEndDescription: localEnd ? formatDateTimeEs(localEnd) : null,
         status: event.status,
         visibility: event.visibility,
         place: event.place
@@ -1521,7 +1541,7 @@ export const joinCommunityEventTool: AITool = {
     });
 
     const localTime = DateTime.fromJSDate(event.timeBegin).setZone(EVENT_TIMEZONE);
-    const localTimeDescription = localTime.toFormat('cccc d LLL yyyy, hh:mm a');
+    const localTimeDescription = formatDateTimeEs(localTime);
 
     if (existingAttendance) {
       return {
@@ -1573,6 +1593,16 @@ export const updateEventTool: AITool = {
         type: 'number',
         description: 'ID del evento que se desea modificar. Obténlo primero con get_upcoming_events.',
       },
+      eventLabel: {
+        type: 'string',
+        description:
+          'Nombre o frase con la que el usuario identificó el evento en la conversación (ej. "evento en Restaurante Urrutia"). Úsalo solo cuando no tengas el ID a mano.',
+      },
+      referenceDate: {
+        type: 'string',
+        description:
+          'Fecha del evento (si se conoce) para ayudar a desambiguar cuando hay múltiples eventos similares. Úsalo junto con eventLabel.',
+      },
       newName: {
         type: 'string',
         description: 'Nuevo nombre del evento (opcional).',
@@ -1586,25 +1616,33 @@ export const updateEventTool: AITool = {
         description:
           'Nueva fecha en lenguaje natural (por ejemplo "este viernes 9pm"). Si se omite, no se toca la fecha.',
       },
+      removeEndTime: {
+        type: 'boolean',
+        description:
+          'Ponlo en true cuando el usuario pida eliminar la hora/fecha de finalización del evento.',
+      },
     },
-    required: ['eventId'],
   },
   handler: async (
     params: {
-      eventId: number;
+      eventId?: number;
+      eventLabel?: string;
+      referenceDate?: string;
       newName?: string;
       description?: string;
       date?: string;
+      removeEndTime?: boolean;
     },
     userId: number
   ): Promise<EventUpdateResult> => {
-    const { eventId, newName, description, date } = params;
+    const { eventId, eventLabel, referenceDate, newName, description, date, removeEndTime } = params;
 
-    if (!eventId || Number.isNaN(eventId)) {
+    if ((!eventId || Number.isNaN(eventId)) && !eventLabel) {
       return {
         success: false,
         reason: 'EVENT_ID_REQUIRED',
-        message: 'Necesito el ID del evento que deseas modificar. Primero consulta tus eventos programados.',
+        message:
+          'Necesito identificar el evento antes de modificarlo. Ejecuta get_upcoming_events y proporciona el evento a modificar, o menciona claramente el nombre del evento para que pueda localizarlo.',
       };
     }
 
@@ -1616,18 +1654,81 @@ export const updateEventTool: AITool = {
       };
     }
 
-    const existing = await prisma.event.findUnique({
-      where: { id: eventId },
-      include: {
-        place: {
-          select: {
-            id: true,
-            name: true,
-            city: true,
+    let existing = null;
+
+    if (eventId && !Number.isNaN(eventId)) {
+      existing = await prisma.event.findUnique({
+        where: { id: eventId },
+        include: {
+          place: {
+            select: {
+              id: true,
+              name: true,
+              city: true,
+            },
           },
         },
-      },
-    });
+      });
+    }
+
+    if (!existing && eventLabel) {
+      const label = eventLabel.trim();
+      if (label.length > 0) {
+        const filters: any = {
+          organizerId: userId,
+          name: {
+            contains: label,
+            mode: 'insensitive',
+          },
+        };
+
+        if (referenceDate) {
+          const parsedRef = parseNaturalLanguageDate(referenceDate);
+          if (parsedRef.success && parsedRef.date) {
+            const dayStart = parsedRef.date.startOf('day').setZone(EVENT_TIMEZONE);
+            const dayEnd = dayStart.plus({ days: 1 });
+            filters.timeBegin = {
+              gte: dayStart.toJSDate(),
+              lt: dayEnd.toJSDate(),
+            };
+          }
+        }
+
+        const candidates = await prisma.event.findMany({
+          where: filters,
+          orderBy: { timeBegin: 'desc' },
+          take: 3,
+          include: {
+            place: {
+              select: {
+                id: true,
+                name: true,
+                city: true,
+              },
+            },
+          },
+        });
+
+        if (candidates.length === 1) {
+          existing = candidates[0];
+        } else if (candidates.length > 1) {
+          return {
+            success: false,
+            reason: 'AMBIGUOUS_EVENT',
+            message:
+              'Encontré varios eventos con un nombre similar. Revisa tu lista de eventos y selecciona el que deseas modificar.',
+            details: {
+              matchingEvents: candidates.map(event => ({
+                id: event.id,
+                name: event.name,
+                timeBegin: event.timeBegin,
+                place: event.place?.name,
+              })),
+            },
+          };
+        }
+      }
+    }
 
     if (!existing || existing.organizerId !== userId) {
       return {
@@ -1681,13 +1782,17 @@ export const updateEventTool: AITool = {
       const parsedDateUtc = parsedDate.setZone('UTC');
       data.timeBegin = parsedDateUtc.toJSDate();
 
-      if (existing.timeEnd) {
+      if (existing.timeEnd && !removeEndTime) {
         const durationMs = existing.timeEnd.getTime() - existing.timeBegin.getTime();
         if (durationMs > 0) {
           const newEnd = parsedDateUtc.plus({ milliseconds: durationMs });
           data.timeEnd = newEnd.toJSDate();
         }
       }
+    }
+
+    if (removeEndTime) {
+      data.timeEnd = null;
     }
 
     try {

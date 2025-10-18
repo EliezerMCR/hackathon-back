@@ -5,6 +5,8 @@ import { authenticate, authorize } from '../middlewares/auth';
 import { validate } from '../middlewares/validation';
 import { updateUserSchema, updateUserSelfSchema } from '../schemas/userSchemas';
 import { HTTP404Error, HTTP409Error } from '../utils/errors';
+import { processImages } from '../middlewares/imageProcessor';
+import { deleteImage } from '../utils/blob-storage';
 
 const router = Router();
 
@@ -329,9 +331,15 @@ router.get('/me/notifications', authenticate, async (req: any, res: any, next) =
   }
 });
 
-router.put('/me', authenticate, validate(updateUserSelfSchema), async (req: any, res: any, next) => {
+router.put('/me', authenticate, processImages(['image']), validate(updateUserSelfSchema), async (req: any, res: any, next) => {
   try {
     const updates: any = { ...req.body };
+
+    // Get current user to check for old image
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { image: true },
+    });
 
     if (updates.password) {
       updates.password = await bcrypt.hash(updates.password, 10);
@@ -341,6 +349,11 @@ router.put('/me', authenticate, validate(updateUserSelfSchema), async (req: any,
       where: { id: req.user.userId },
       data: updates,
     });
+
+    // Delete old image if a new one was uploaded
+    if (updates.image && currentUser?.image && updates.image !== currentUser.image) {
+      await deleteImage(currentUser.image);
+    }
 
     res.json(sanitizeUser(user));
   } catch (error: any) {
@@ -605,10 +618,16 @@ router.get('/:id/invitations', authenticate, async (req: any, res: any, next) =>
   }
 });
 
-router.put('/:id', authenticate, authorize(['ADMIN']), validate(updateUserSchema), async (req: any, res: any, next) => {
+router.put('/:id', authenticate, authorize(['ADMIN']), processImages(['image']), validate(updateUserSchema), async (req: any, res: any, next) => {
   try {
     const { id } = req.params;
     const updates: any = { ...req.body };
+
+    // Get current user to check for old image
+    const currentUser = await prisma.user.findUnique({
+      where: { id: parseInt(id) },
+      select: { image: true },
+    });
 
     if (updates.password) {
       updates.password = await bcrypt.hash(updates.password, 10);
@@ -622,6 +641,11 @@ router.put('/:id', authenticate, authorize(['ADMIN']), validate(updateUserSchema
       where: { id: parseInt(id) },
       data: updates,
     });
+
+    // Delete old image if a new one was uploaded
+    if (updates.image && currentUser?.image && updates.image !== currentUser.image) {
+      await deleteImage(currentUser.image);
+    }
 
     res.json(sanitizeUser(user));
   } catch (error: any) {

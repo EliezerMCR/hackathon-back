@@ -3,7 +3,7 @@ import { EventVisibility, ROLE } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middlewares/auth';
-import { ensureCanManageEvent, ensureCanManagePlace, ensureRole } from '../utils/authorization';
+import { ensureCanManageEvent } from '../utils/authorization';
 
 const router = Router();
 
@@ -15,7 +15,6 @@ const createEventSchema = z.object({
   timeBegin: z.string().datetime(),
   timeEnd: z.string().datetime().optional(),
   placeId: z.number().int().positive(),
-  organizerId: z.number().int().positive(),
   communityId: z.number().int().positive().optional(),
   minAge: z.number().int().min(0).max(100).default(18),
   externalUrl: z.string().url().optional(),
@@ -295,33 +294,13 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
       });
     }
 
-    const {
-      placeId,
-      organizerId,
-      communityId,
-      timeBegin,
-      timeEnd,
-      visibility,
-      ...eventData
-    } =
-      validation.data;
+    const { placeId, communityId, timeBegin, timeEnd, visibility, ...eventData } = validation.data;
 
-    const actor = ensureRole(req.user, [ROLE.ADMIN, ROLE.MARKET]);
-
-    if (actor.role === ROLE.MARKET && organizerId !== actor.userId) {
-      return res.status(403).json({ error: 'Markets can only organize events for themselves' });
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
-    await ensureCanManagePlace(req.user, placeId);
-
-    // Verify organizer exists (admins might create for other organizers)
-    const organizer = await prisma.user.findUnique({
-      where: { id: organizerId },
-    });
-
-    if (!organizer) {
-      return res.status(404).json({ error: 'Organizer user not found' });
-    }
+    const organizerId = req.user.userId;
 
     if (visibility === 'PUBLIC' && !communityId) {
       return res
@@ -349,6 +328,12 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
         communityId,
         status: 'proximo',
         visibility,
+        // Automatically add organizer as attendee
+        attendees: {
+          create: {
+            userId: organizerId,
+          },
+        },
       },
       include: {
         place: {
@@ -371,11 +356,16 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
             name: true,
           },
         },
+        _count: {
+          select: {
+            attendees: true,
+          },
+        },
       },
     });
 
     res.status(201).json({
-      message: 'Evento creado exitosamente',
+      message: 'Evento creado exitosamente. Te has unido automáticamente como asistente.',
       event,
     });
   } catch (error) {
