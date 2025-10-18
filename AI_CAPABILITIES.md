@@ -56,3 +56,4 @@
 - Procesa fechas en lenguaje natural en español (por ejemplo “lunes próximo a las 2pm”) y normaliza a la zona configurada.
 - Sanitiza reseñas, evita inventar información y usa exclusivamente datos provenientes de las herramientas.
 - Por defecto, cuando busca lugares (`get_available_places`), usa la ciudad registrada del usuario y solo solicita otra si está ausente o el usuario pide cambiarla.
+- Utiliza automáticamente la ciudad guardada en el perfil del usuario al llamar `get_available_places`; sólo pregunta por la ciudad si el perfil no la tiene o el usuario desea otra.

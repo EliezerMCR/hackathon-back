@@ -338,14 +338,14 @@ const generatePlaceSummary = (place: {
 export const getAvailablePlacesTool: AITool = {
   name: 'get_available_places',
   description:
-    'Get a list of available places/venues where events can be created. If the user profile already has a city, use it by default; only ask for another if the profile city is missing or the user specifies a different one. Returns multiple options for the user to choose from.',
+    'Get a list of available places/venues where events can be created. Si el perfil ya tiene ciudad, úsala automáticamente; pregunta por otra sólo si falta o el usuario lo pide. Devuelve varias opciones para que el usuario elija.',
   parameters: {
     type: 'object',
     properties: {
       city: {
         type: 'string',
         description:
-          "REQUIRED: The city where to search for places. You MUST ask the user for their city if they haven't provided it yet.",
+          'Ciudad donde buscar lugares. Si no se envía, la herramienta usará la ciudad registrada del usuario.',
       },
       type: {
         type: 'string',
@@ -374,9 +374,8 @@ export const getAvailablePlacesTool: AITool = {
   ): Promise<AvailablePlace[]> => {
     let { city, type, minCapacity, limit = 10 } = params;
 
-    const trimmedCity = city?.trim();
+    let effectiveCity = city?.trim();
 
-    let effectiveCity = trimmedCity;
     if (!effectiveCity) {
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -386,7 +385,7 @@ export const getAvailablePlacesTool: AITool = {
     }
 
     if (!effectiveCity) {
-      throw new Error('CITY_REQUIRED');
+      throw new Error('CITY_REQUIRED: El perfil no tiene ciudad, pregunta al usuario en qué ciudad desea el plan.');
     }
 
     const where: any = {

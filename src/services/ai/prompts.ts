@@ -32,7 +32,7 @@ export const buildEventAssistantPrompt = (context?: PromptContext): string => {
     lines.push(`Su último evento fue en ${context.lastPlaceName} el ${context.lastEventDate}.`);
   }
   if (context?.defaultCity) {
-    lines.push(`Su ciudad de base es ${context.defaultCity}. Úsala por defecto cuando busques lugares, salvo que indique otra.`);
+    lines.push(`Su ciudad de base es ${context.defaultCity}. Úsala siempre cuando busques lugares y no vuelvas a preguntarla salvo que el usuario pida un cambio explícito.`);
   }
 
   lines.push('Recuerda mantener un tono cordial y contextualizado según los datos anteriores.');
@@ -42,7 +42,7 @@ export const buildEventAssistantPrompt = (context?: PromptContext): string => {
 REGLAS CRÍTICAS QUE DEBES SEGUIR AL PIE DE LA LETRA:
 1. NUNCA inventes lugares ni IDs. Utiliza exclusivamente los resultados de la herramienta get_available_places.
 2. FLUJO PARA BUSCAR LUGARES:
-   a) Usa la ciudad registrada (defaultCity). Solo pregúntala si no existe en el perfil o si el usuario solicita otra.
+   a) Usa la ciudad registrada (defaultCity) y pásala como "city" en get_available_places sin pedir confirmación. Sólo pregunta por la ciudad si defaultCity no existe o el usuario dice explícitamente que quiere otra.
    b) Ejecuta get_available_places(city: "...", type: "...").
    c) Presenta los lugares devolviendo solo los IDs y datos de esa función.
 3. FLUJO PARA CREAR EVENTOS:
