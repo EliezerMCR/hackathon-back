@@ -1,6 +1,8 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { authenticate, authorize } from '../middlewares/auth';
+import { HTTP403Error, HTTP404Error } from '../utils/errors';
 
 const router = Router();
 
@@ -181,7 +183,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/places - Create new place
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticate, authorize(['ADMIN', 'MARKET']), async (req: Request & { user?: any }, res: Response, next: NextFunction) => {
   try {
     const validation = createPlaceSchema.safeParse(req.body);
 
@@ -193,20 +195,23 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const data = validation.data;
+    const requester = req.user;
+    const resolvedOwnerId = data.ownerId ?? requester.userId;
 
-    // Verify owner exists if provided
-    if (data.ownerId) {
-      const owner = await prisma.user.findUnique({
-        where: { id: data.ownerId },
-      });
+    if (requester.role === 'MARKET' && resolvedOwnerId !== requester.userId) {
+      return next(new HTTP403Error('Markets can only create places for themselves'));
+    }
 
-      if (!owner) {
-        return res.status(404).json({ error: 'Owner user not found' });
-      }
+    const owner = await prisma.user.findUnique({ where: { id: resolvedOwnerId } });
+    if (!owner) {
+      return next(new HTTP404Error('Owner user not found'));
     }
 
     const place = await prisma.place.create({
-      data,
+      data: {
+        ...data,
+        ownerId: resolvedOwnerId,
+      },
       include: {
         owner: {
           select: {
@@ -225,12 +230,12 @@ router.post('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error creating place:', error);
-    res.status(500).json({ error: 'Failed to create place' });
+    next(error);
   }
 });
 
 // PUT /api/places/:id - Update place
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', authenticate, async (req: Request & { user?: any }, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const placeId = parseInt(id, 10);
@@ -239,8 +244,17 @@ router.put('/:id', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid place ID' });
     }
 
-    const validation = updatePlaceSchema.safeParse(req.body);
+    const existingPlace = await prisma.place.findUnique({ where: { id: placeId } });
+    if (!existingPlace) {
+      return next(new HTTP404Error('Place not found'));
+    }
 
+    const requester = req.user;
+    if (requester.role !== 'ADMIN' && existingPlace.ownerId !== requester.userId) {
+      return next(new HTTP403Error('You are not allowed to update this place'));
+    }
+
+    const validation = updatePlaceSchema.safeParse(req.body);
     if (!validation.success) {
       return res.status(400).json({
         error: 'Validation failed',
@@ -264,19 +278,14 @@ router.put('/:id', async (req: Request, res: Response) => {
     });
 
     res.json(place);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating place:', error);
-
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Place not found' });
-    }
-
-    res.status(500).json({ error: 'Failed to update place' });
+    next(error);
   }
 });
 
 // DELETE /api/places/:id - Delete place
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, async (req: Request & { user?: any }, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const placeId = parseInt(id, 10);
@@ -285,22 +294,25 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid place ID' });
     }
 
-    const deleted = await prisma.place.delete({
-      where: { id: placeId },
-    });
+    const existingPlace = await prisma.place.findUnique({ where: { id: placeId } });
+    if (!existingPlace) {
+      return next(new HTTP404Error('Place not found'));
+    }
+
+    const requester = req.user;
+    if (requester.role !== 'ADMIN' && existingPlace.ownerId !== requester.userId) {
+      return next(new HTTP403Error('You are not allowed to delete this place'));
+    }
+
+    const deleted = await prisma.place.delete({ where: { id: placeId } });
 
     res.status(200).json({
       message: `Place '${deleted.name}' eliminado exitosamente`,
       id: deleted.id,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error deleting place:', error);
-
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Place not found' });
-    }
-
-    res.status(500).json({ error: 'Failed to delete place' });
+    next(error);
   }
 });
 
