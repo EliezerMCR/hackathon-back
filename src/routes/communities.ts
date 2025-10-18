@@ -516,4 +516,31 @@ router.get('/:communityId/is-member/:userId', async (req: Request, res: Response
   }
 });
 
+router.get('/member/:userId', async (req: Request, res: Response, next) => {
+  try {
+    const userId = Number(req.params.userId);
+    if (!Number.isInteger(userId)) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const memberships = await prisma.community_Member.findMany({
+      where: { userId },
+      include: {
+        community: true,
+      },
+    });
+
+    const communities = memberships.map(m => ({
+      id: m.community.id,
+      name: m.community.name,
+      role: m.role,
+      joinedAt: m.createdAt,
+    }));
+
+    res.json({ communities });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
