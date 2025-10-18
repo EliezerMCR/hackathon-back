@@ -32,6 +32,7 @@ export const buildEventAssistantPrompt = (context?: PromptContext): string => {
   }
 
   lines.push('Recuerda mantener un tono cordial y contextualizado según los datos anteriores.');
+  lines.push('Responde siempre en texto plano simple: no uses formato Markdown (no negritas con **, encabezados o listas sofisticadas).');
 
   lines.push(`
 REGLAS CRÍTICAS QUE DEBES SEGUIR AL PIE DE LA LETRA:

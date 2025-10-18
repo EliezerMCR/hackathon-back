@@ -89,14 +89,20 @@ const extractTimeInfo = (input: string): TimeInfo | null => {
       continue;
     }
 
-    const minutePart = match[2];
-    const meridiem = match[3];
     let minute = 0;
+    let meridiem: string | undefined;
 
-    if (minutePart) {
-      minute = Number.parseInt(minutePart, 10);
-      if (Number.isNaN(minute) || minute > 59) {
-        minute = 0;
+    for (let i = 2; i < match.length; i++) {
+      const part = match[i];
+      if (!part) continue;
+
+      if (/^\d{1,2}$/.test(part)) {
+        const parsedMinute = Number.parseInt(part, 10);
+        if (!Number.isNaN(parsedMinute) && parsedMinute >= 0 && parsedMinute < 60) {
+          minute = parsedMinute;
+        }
+      } else if (/[ap]\.?m\.?/i.test(part)) {
+        meridiem = part;
       }
     }
 
@@ -980,8 +986,8 @@ export const getUpcomingEventsTool: AITool = {
       const location = ev.place.city ? ` en ${ev.place.city}` : '';
       const endSegment = ev.localEndDescription
         ? ` y termina a las ${ev.localEndDescription}`
-        : ' y no tiene una hora de cierre registrada';
-      return `• ${ev.name}${location} – ${ev.localTimeDescription}${endSegment}`;
+        : ' y no tiene hora de cierre registrada';
+      return `${ev.name}${location}: comienza ${ev.localTimeDescription}${endSegment}.`;
     });
 
     return {
@@ -1207,7 +1213,7 @@ export const getCommunityEventsTool: AITool = {
 
     const summaryLines = formatted.map(event => {
       const placeInfo = event.place?.city ? ` en ${event.place.city}` : '';
-      return `• ${event.name}${placeInfo} – ${event.localTimeDescription}`;
+      return `${event.name}${placeInfo}: comienza ${event.localTimeDescription}.`;
     });
 
     return {
