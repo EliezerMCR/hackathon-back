@@ -15,6 +15,19 @@ import { buildEventAssistantPrompt } from './prompts';
 const MAX_TOOL_ITERATIONS = 5;
 const EVENT_TIMEZONE = process.env.EVENT_TIMEZONE || 'America/Caracas';
 
+const formatDateForPrompt = (date: Date | null | undefined) => {
+  if (!date) {
+    return null;
+  }
+
+  const formatted = DateTime.fromJSDate(date).setZone(EVENT_TIMEZONE);
+  if (!formatted.isValid) {
+    return null;
+  }
+
+  return `${formatted.toFormat('dd LLL yyyy, HH:mm')} (${EVENT_TIMEZONE})`;
+};
+
 const formatPromptContext = (context?: UserContext) => {
   if (!context) {
     return undefined;
@@ -25,11 +38,7 @@ const formatPromptContext = (context?: UserContext) => {
     membership: context.membership ?? undefined,
     preferredName:
       [context.name, context.lastName].filter(Boolean).join(' ') || context.name || context.lastName || undefined,
-    lastEventDate: context.lastEventDate
-      ? `${DateTime.fromJSDate(context.lastEventDate)
-          .setZone(EVENT_TIMEZONE)
-          .toFormat('dd LLL yyyy, HH:mm')} (${EVENT_TIMEZONE})`
-      : null,
+    lastEventDate: formatDateForPrompt(context.lastEventDate),
     lastPlaceName: context.lastPlaceName ?? null,
   };
 };

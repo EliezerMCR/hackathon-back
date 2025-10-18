@@ -1,11 +1,19 @@
 /**
  * AI Tools Definitions
  * These are the functions that Gemini can invoke during conversations.
- * Date parsing now relies on Luxon for richer natural language support.
+ * Date parsing relies on Luxon for richer natural language support.
  */
 import { DateTime } from 'luxon';
 import { prisma } from '../../lib/prisma';
-import { AITool, AvailablePlace, CreateEventParams, EventCreationResult } from './types';
+import {
+  AITool,
+  AvailablePlace,
+  CreateEventParams,
+  EventCreationResult,
+  PlaceReview,
+  UpcomingEvent,
+  EventUpdateResult,
+} from './types';
 
 const EVENT_TIMEZONE = process.env.EVENT_TIMEZONE || 'America/Caracas';
 const DEFAULT_EVENT_TIME = { hour: 20, minute: 0 };
@@ -22,17 +30,9 @@ const timeRegexes = [
   /(?:a las|sobre las|para las)\s+(\d{1,2})(?:[:\.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?/i,
 ];
 
-const stripTimeComponents = (value: string): string => {
-  let sanitized = value;
-  for (const regex of timeRegexes) {
-    sanitized = sanitized.replace(regex, ' ');
-  }
-  return sanitized.replace(/\s+/g, ' ').trim();
-};
-
 const weekdayMap: Record<string, number> = {
-  domingo: 7,
-  sunday: 7,
+  domingo: 0,
+  sunday: 0,
   lunes: 1,
   monday: 1,
   martes: 2,
@@ -47,6 +47,15 @@ const weekdayMap: Record<string, number> = {
   sabado: 6,
   sábado: 6,
   saturday: 6,
+};
+
+const stripTimeComponents = (value: string): string => {
+  let sanitized = value;
+  for (const regex of timeRegexes) {
+    sanitized = sanitized.replace(regex, ' ');
+  }
+  sanitized = sanitized.replace(/[,]/g, ' ');
+  return sanitized.replace(/\s+/g, ' ').trim();
 };
 
 const cleanMeridiem = (value?: string | null) => value?.replace(/\./g, '').toLowerCase();
@@ -97,7 +106,12 @@ const extractTimeInfo = (input: string): TimeInfo | null => {
 const applyTime = (date: DateTime, timeInfo: TimeInfo | null): DateTime => {
   const base = date.setZone(EVENT_TIMEZONE);
   if (timeInfo) {
-    return base.set({ hour: timeInfo.hour, minute: timeInfo.minute, second: 0, millisecond: 0 });
+    return base.set({
+      hour: timeInfo.hour,
+      minute: timeInfo.minute,
+      second: 0,
+      millisecond: 0,
+    });
   }
   return base.set({
     hour: DEFAULT_EVENT_TIME.hour,
@@ -157,12 +171,12 @@ const parseRelativeDate = (lower: string, timeInfo: TimeInfo | null): DateTime |
     return applyTime(now.plus({ days: daysUntilSaturday }), timeInfo);
   }
 
-  const weekdayMatch = lower.match(/(este|próximo|proximo|siguiente)?\s*(domingo|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado)/);
+  const weekdayMatch = lower.match(/(este|próximo|proximo|siguiente)?\s*(domingo|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|sunday|monday|tuesday|wednesday|thursday|friday|saturday)/);
   if (weekdayMatch) {
     const modifier = weekdayMatch[1];
     const dayName = weekdayMatch[2];
     const targetWeekday = weekdayMap[dayName];
-    if (targetWeekday) {
+    if (targetWeekday !== undefined) {
       let daysToAdd = targetWeekday - now.weekday;
       if (daysToAdd < 0) {
         daysToAdd += 7;
@@ -193,12 +207,10 @@ const parseNaturalLanguageDate = (
 
   const lower = trimmed.toLowerCase();
   const timeInfo = extractTimeInfo(lower);
-  const now = DateTime.now().setZone(EVENT_TIMEZONE);
   const sanitized = stripTimeComponents(trimmed);
   const sanitizedLower = sanitized.toLowerCase();
-  const baseForFormats = sanitized || trimmed;
+  const now = DateTime.now().setZone(EVENT_TIMEZONE);
 
-  // Try ISO first
   const iso = DateTime.fromISO(trimmed, { zone: EVENT_TIMEZONE });
   if (iso.isValid) {
     const hasExplicitTime = /t\d{1,2}[:\.]\d{2}/i.test(trimmed) || /\d{1,2}[:\.]\d{2}/.test(trimmed);
@@ -206,7 +218,6 @@ const parseNaturalLanguageDate = (
     return { success: true, date: hasExplicitTime ? iso : dateWithTime };
   }
 
-  // Numeric formats
   const numericFormats = [
     { format: 'd/M/yyyy', locale: 'es' },
     { format: 'd-M-yyyy', locale: 'es' },
@@ -216,13 +227,12 @@ const parseNaturalLanguageDate = (
     { format: 'yyyy-M-d', locale: 'en' },
   ];
 
-  const numericResult = parseWithFormats(baseForFormats, numericFormats, timeInfo, now);
+  const numericResult = parseWithFormats(sanitized, numericFormats, timeInfo, now);
   if (numericResult) {
     return { success: true, date: numericResult };
   }
 
-  // Numeric without year
-  const shortDateMatch = baseForFormats.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+  const shortDateMatch = sanitized.match(/^(\d{1,2})[\/-](\d{1,2})$/);
   if (shortDateMatch) {
     const day = shortDateMatch[1];
     const month = shortDateMatch[2];
@@ -236,7 +246,6 @@ const parseNaturalLanguageDate = (
     }
   }
 
-  // Month name (Spanish / English)
   const monthFormats = [
     {
       format: "d 'de' MMMM yyyy",
@@ -265,12 +274,11 @@ const parseNaturalLanguageDate = (
     },
   ];
 
-  const monthResult = parseWithFormats(baseForFormats, monthFormats, timeInfo, now);
+  const monthResult = parseWithFormats(sanitized, monthFormats, timeInfo, now);
   if (monthResult) {
     return { success: true, date: monthResult };
   }
 
-  // Relative keywords
   const relativeResult = parseRelativeDate(sanitizedLower, timeInfo);
   if (relativeResult) {
     return { success: true, date: relativeResult };
@@ -281,6 +289,35 @@ const parseNaturalLanguageDate = (
     reason: 'UNPARSEABLE_DATE',
     message: `No pude entender la fecha "${input}". Intenta con un formato como "2025-10-20", "viernes a las 7pm" o "31 de mayo 19h".`,
   };
+};
+
+const MAX_PLACE_SUMMARY_LENGTH = 200;
+
+const generatePlaceSummary = (place: {
+  name: string;
+  description?: string | null;
+  city?: string | null;
+  type?: string | null;
+}) => {
+  if (place.description) {
+    const cleaned = place.description.replace(/\s+/g, ' ').trim();
+    if (cleaned) {
+      if (cleaned.length <= MAX_PLACE_SUMMARY_LENGTH) {
+        return cleaned;
+      }
+      return `${cleaned.slice(0, MAX_PLACE_SUMMARY_LENGTH - 1).trimEnd()}…`;
+    }
+  }
+
+  const parts: string[] = [place.name];
+  if (place.type) {
+    parts.push(place.type);
+  }
+  if (place.city) {
+    parts.push(`en ${place.city}`);
+  }
+
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
 };
 
 /**
@@ -356,13 +393,168 @@ export const getAvailablePlacesTool: AITool = {
         capacity: true,
         type: true,
         direction: true,
+        description: true,
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    return places;
+    return places.map(place => {
+      const summary = generatePlaceSummary(place);
+
+      return {
+        id: place.id,
+        name: place.name,
+        city: place.city,
+        capacity: place.capacity,
+        type: place.type,
+        summary: summary || place.name,
+        internalNotes: {
+          includeCapacity: Boolean(place.capacity && place.capacity >= 150),
+          direction: place.direction,
+        },
+      };
+    });
+  },
+};
+
+const sanitizeComment = (text: string | null, maxLength = 220): string | null => {
+  if (!text) {
+    return null;
+  }
+  const cleaned = text.replace(/\s+/g, ' ').replace(/[!¡]{2,}/g, '!').replace(/[?¿]{2,}/g, '?').trim();
+  if (cleaned.length <= maxLength) {
+    return cleaned;
+  }
+  return `${cleaned.slice(0, maxLength - 1).trimEnd()}…`;
+};
+
+const toneFromRating = (rating: number): 'positive' | 'neutral' | 'negative' => {
+  if (rating >= 4) return 'positive';
+  if (rating <= 2) return 'negative';
+  return 'neutral';
+};
+
+/**
+ * Tool: Get reviews for a place.
+ */
+export const getPlaceReviewsTool: AITool = {
+  name: 'get_place_reviews',
+  description:
+    'Obtiene una muestra de reseñas (comentarios y calificaciones) para un lugar específico usando su ID real. Úsala cuando el usuario pida opiniones o experiencias de un sitio recomendado.',
+  parameters: {
+    type: 'object',
+    properties: {
+      placeId: {
+        type: 'number',
+        description:
+          'REQUIRED: ID del lugar entregado previamente por get_available_places. Usa el ID correspondiente al lugar del que el usuario quiere saber.',
+      },
+      limit: {
+        type: 'number',
+        description: 'Cantidad máxima de reseñas a devolver (por defecto 3).',
+      },
+    },
+    required: ['placeId'],
+  },
+  handler: async (
+    params: { placeId: number; limit?: number },
+    _userId: number
+  ): Promise<{
+    success: boolean;
+    place?: { id: number; name: string; city: string | null };
+    summary?: { totalReviews: number; averageRating: number | null };
+    reviews?: PlaceReview[];
+    message?: string;
+    reason?: string;
+  }> => {
+    const { placeId, limit = 3 } = params;
+
+    if (!placeId || Number.isNaN(placeId)) {
+      return {
+        success: false,
+        reason: 'INVALID_PLACE_ID',
+        message: 'Debes proporcionar un placeId válido para consultar reseñas.',
+      };
+    }
+
+    const place = await prisma.place.findUnique({
+      where: { id: placeId },
+      select: {
+        id: true,
+        name: true,
+        city: true,
+      },
+    });
+
+    if (!place) {
+      return {
+        success: false,
+        reason: 'PLACE_NOT_FOUND',
+        message: `No encontré información para el lugar con ID ${placeId}.`,
+      };
+    }
+
+    const [reviews, totalInfo] = await Promise.all([
+      prisma.review.findMany({
+        where: { placeId },
+        orderBy: { createdAt: 'desc' },
+        take: Math.max(1, Math.min(limit, 5)),
+        select: {
+          calification: true,
+          comment: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              lastName: true,
+            },
+          },
+        },
+      }),
+      prisma.review.aggregate({
+        where: { placeId },
+        _avg: { calification: true },
+        _count: { _all: true },
+      }),
+    ]);
+
+    if (totalInfo._count._all === 0) {
+      return {
+        success: true,
+        place,
+        summary: {
+          totalReviews: 0,
+          averageRating: null,
+        },
+        reviews: [],
+        message: 'Este lugar aún no tiene comentarios publicados.',
+      };
+    }
+
+    const formatted: PlaceReview[] = reviews.map(review => ({
+      reviewer: {
+        id: review.user.id,
+        name: review.user.name,
+        lastName: review.user.lastName,
+      },
+      rating: review.calification,
+      comment: sanitizeComment(review.comment),
+      createdAt: review.createdAt.toISOString(),
+      tone: toneFromRating(review.calification),
+    }));
+
+    return {
+      success: true,
+      place,
+      summary: {
+        totalReviews: totalInfo._count._all,
+        averageRating: totalInfo._avg.calification ?? null,
+      },
+      reviews: formatted,
+    };
   },
 };
 
@@ -443,7 +635,7 @@ export const createEventTool: AITool = {
 
       const eventDate = parsedDateResult.date;
 
-      if (!eventDate.isValid) {
+      if (!eventDate || !eventDate.isValid) {
         return {
           success: false,
           reason: 'INVALID_DATE',
@@ -466,11 +658,13 @@ export const createEventTool: AITool = {
         };
       }
 
+      const eventDateUtc = eventDate.setZone('UTC');
+
       const event = await prisma.event.create({
         data: {
           name: eventName,
           description: description || `Evento creado en ${place.name}`,
-          timeBegin: eventDate.toJSDate(),
+          timeBegin: eventDateUtc.toJSDate(),
           placeId: place.id,
           organizerId: userId,
           minAge,
@@ -503,7 +697,11 @@ export const createEventTool: AITool = {
           placeId: place.id,
           timeZone: EVENT_TIMEZONE,
           parsedDate: eventDate.toISO(),
+          localTimeDescription: eventDate.setZone(EVENT_TIMEZONE).toFormat('cccc d LLL yyyy, hh:mm a'),
+          localEndDescription: null,
         },
+        localTimeDescription: eventDate.setZone(EVENT_TIMEZONE).toFormat('cccc d LLL yyyy, hh:mm a'),
+        localEndDescription: null,
       };
     } catch (error: any) {
       console.error('Error creating event:', error);
@@ -520,6 +718,339 @@ export const createEventTool: AITool = {
 };
 
 /**
+ * Tool: List upcoming events for the authenticated user.
+ */
+export const getUpcomingEventsTool: AITool = {
+  name: 'get_upcoming_events',
+  description:
+    'Obtiene los próximos eventos creados por el usuario autenticado. Úsalo cuando quiera repasar lo que ya tiene programado.',
+  parameters: {
+    type: 'object',
+    properties: {
+      limit: {
+        type: 'number',
+        description: 'Máximo de eventos a mostrar (por defecto 5, máximo 20).',
+      },
+      daysAhead: {
+        type: 'number',
+        description: 'Cuántos días hacia el futuro se consideran (por defecto 30).',
+      },
+    },
+  },
+  handler: async (
+    params: { limit?: number; daysAhead?: number },
+    userId: number
+  ): Promise<{
+    success: boolean;
+    events: UpcomingEvent[];
+    message?: string;
+  }> => {
+    const limit = params?.limit ?? 5;
+    const daysAhead = params?.daysAhead ?? 30;
+    const now = DateTime.now().setZone(EVENT_TIMEZONE);
+    const maxDate = now.plus({ days: daysAhead });
+
+    const events = await prisma.event.findMany({
+      where: {
+        organizerId: userId,
+        timeBegin: {
+          gte: now.toJSDate(),
+          lte: maxDate.toJSDate(),
+        },
+      },
+      orderBy: {
+        timeBegin: 'asc',
+      },
+      take: Math.min(Math.max(limit, 1), 20),
+      select: {
+        id: true,
+        name: true,
+        timeBegin: true,
+        timeEnd: true,
+        status: true,
+        description: true,
+        place: {
+          select: {
+            id: true,
+            name: true,
+            city: true,
+            description: true,
+            type: true,
+          },
+        },
+      },
+    });
+
+    if (events.length === 0) {
+      return {
+        success: true,
+        events: [],
+        message: 'No tienes eventos programados en los próximos 30 días.',
+      };
+    }
+
+    const formattedEvents = events.map(event => {
+      const localTime = DateTime.fromJSDate(event.timeBegin).setZone(EVENT_TIMEZONE);
+      const localEnd = event.timeEnd
+        ? DateTime.fromJSDate(event.timeEnd).setZone(EVENT_TIMEZONE)
+        : null;
+
+      const timeBeginIso =
+        (localTime.isValid && localTime.toISO()) ||
+        DateTime.fromJSDate(event.timeBegin).toISO() ||
+        event.timeBegin.toISOString();
+
+      const localDescription = localTime.isValid
+        ? localTime.toFormat('cccc d LLL yyyy, hh:mm a')
+        : DateTime.fromJSDate(event.timeBegin).toFormat('cccc d LLL yyyy, hh:mm a');
+
+      const timeEndIso =
+        (localEnd && localEnd.isValid && localEnd.toISO()) ||
+        (event.timeEnd ? DateTime.fromJSDate(event.timeEnd).toISO() : null);
+
+      const localEndDescription =
+        localEnd && localEnd.isValid
+          ? localEnd.toFormat('hh:mm a')
+          : event.timeEnd
+            ? DateTime.fromJSDate(event.timeEnd)
+                .setZone(EVENT_TIMEZONE)
+                .toFormat('hh:mm a')
+            : null;
+
+      return {
+        id: event.id,
+        name: event.name,
+        timeBegin: timeBeginIso,
+        timeEnd: timeEndIso,
+        status: event.status,
+        localTimeDescription: localDescription,
+        localEndDescription: localEndDescription,
+        place: {
+          id: event.place.id,
+          name: event.place.name,
+          city: event.place.city,
+          summary: generatePlaceSummary({
+            name: event.place.name,
+            description: event.place.description,
+            city: event.place.city,
+            type: event.place.type,
+          }),
+        },
+      };
+    });
+
+    const summaryLines = formattedEvents.map(ev => {
+      const location = ev.place.city ? ` en ${ev.place.city}` : '';
+      const endSegment = ev.localEndDescription
+        ? ` y termina a las ${ev.localEndDescription}`
+        : ' y no tiene una hora de cierre registrada';
+      return `• ${ev.name}${location} – ${ev.localTimeDescription}${endSegment}`;
+    });
+
+    return {
+      success: true,
+      events: formattedEvents,
+      message: ['Estos son tus eventos para los próximos 30 días:']
+        .concat(summaryLines)
+        .join('\n'),
+    };
+  },
+};
+
+/**
+ * Tool: Update an existing event organized by the user.
+ */
+export const updateEventTool: AITool = {
+  name: 'update_event',
+  description:
+    'Permite modificar un evento del usuario (nombre, fecha, descripción). Úsalo cuando quiera ajustar detalles de algo ya creado.',
+  parameters: {
+    type: 'object',
+    properties: {
+      eventId: {
+        type: 'number',
+        description: 'REQUIRED: ID del evento que deseas modificar.',
+      },
+      eventName: {
+        type: 'string',
+        description: 'Nuevo nombre del evento (opcional).',
+      },
+      description: {
+        type: 'string',
+        description: 'Nueva descripción o notas para el evento (opcional).',
+      },
+      date: {
+        type: 'string',
+        description:
+          'Nueva fecha en lenguaje natural (por ejemplo "este viernes 9pm"). Si se omite, no se toca la fecha.',
+      },
+    },
+    required: ['eventId'],
+  },
+  handler: async (
+    params: { eventId: number; eventName?: string; description?: string; date?: string },
+    userId: number
+  ): Promise<EventUpdateResult> => {
+    const { eventId, eventName, description, date } = params;
+
+    if (!eventId || Number.isNaN(eventId)) {
+      return {
+        success: false,
+        reason: 'INVALID_EVENT_ID',
+        message: 'Debes indicar un ID de evento válido para modificarlo.',
+      };
+    }
+
+    if (!eventName && !description && !date) {
+      return {
+        success: false,
+        reason: 'NO_UPDATES_PROVIDED',
+        message: 'Indica qué quieres modificar (nombre, descripción o fecha).',
+      };
+    }
+
+    const existing = await prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        place: {
+          select: {
+            id: true,
+            name: true,
+            city: true,
+          },
+        },
+      },
+    });
+
+    if (!existing || existing.organizerId !== userId) {
+      return {
+        success: false,
+        reason: 'EVENT_NOT_FOUND',
+        message: 'No encontré un evento tuyo con ese ID.',
+      };
+    }
+
+    const data: any = {};
+    let parsedDate: DateTime | undefined;
+
+    if (eventName) {
+      data.name = eventName;
+    }
+
+    if (typeof description === 'string') {
+      data.description = description.trim();
+    }
+
+    if (date) {
+      const parsed = parseNaturalLanguageDate(date);
+      if (!parsed.success || !parsed.date) {
+        return {
+          success: false,
+          reason: parsed.reason || 'INVALID_DATE',
+          message:
+            parsed.message ||
+            `No pude interpretar la nueva fecha "${date}". Por favor indícala con más detalle.`,
+        };
+      }
+      parsedDate = parsed.date;
+
+      if (!parsedDate.isValid) {
+        return {
+          success: false,
+          reason: 'INVALID_DATE',
+          message: `No pude interpretar la nueva fecha "${date}".`,
+        };
+      }
+
+      const now = DateTime.now().setZone(EVENT_TIMEZONE);
+      if (parsedDate <= now) {
+        return {
+          success: false,
+          reason: 'PAST_DATE',
+          message: `La nueva fecha "${date}" parece estar en el pasado. Elige una fecha futura.`,
+        };
+      }
+
+      const parsedDateUtc = parsedDate.setZone('UTC');
+      data.timeBegin = parsedDateUtc.toJSDate();
+
+      if (existing.timeEnd) {
+        const durationMs = existing.timeEnd.getTime() - existing.timeBegin.getTime();
+        if (durationMs > 0) {
+          const newEnd = parsedDateUtc.plus({ milliseconds: durationMs });
+          data.timeEnd = newEnd.toJSDate();
+        }
+      }
+    }
+
+    try {
+      const updated = await prisma.event.update({
+        where: { id: eventId },
+        data,
+        include: {
+          place: {
+            select: {
+              id: true,
+              name: true,
+              city: true,
+            },
+          },
+        },
+      });
+
+      const localTime = DateTime.fromJSDate(updated.timeBegin).setZone(EVENT_TIMEZONE);
+      const localEnd = updated.timeEnd
+        ? DateTime.fromJSDate(updated.timeEnd).setZone(EVENT_TIMEZONE)
+        : null;
+
+      const timeBeginIso =
+        (localTime.isValid && localTime.toISO()) ||
+        DateTime.fromJSDate(updated.timeBegin).toISO() ||
+        updated.timeBegin.toISOString();
+
+      const timeEndIso =
+        (localEnd && localEnd.isValid && localEnd.toISO()) ||
+        (updated.timeEnd ? DateTime.fromJSDate(updated.timeEnd).toISO() : null);
+
+      return {
+        success: true,
+        message: 'Evento actualizado correctamente.',
+        event: {
+          id: updated.id,
+          name: updated.name,
+          timeBegin: timeBeginIso,
+          timeEnd: timeEndIso,
+          localTimeDescription: localTime.toFormat('cccc d LLL yyyy, hh:mm a'),
+          localEndDescription: localEnd ? localEnd.toFormat('cccc d LLL yyyy, hh:mm a') : null,
+          description: updated.description,
+          place: {
+            id: updated.place.id,
+            name: updated.place.name,
+            city: updated.place.city,
+          },
+        },
+      };
+    } catch (error: any) {
+      console.error('Error updating event:', error);
+      return {
+        success: false,
+        reason: 'UNKNOWN_ERROR',
+        message: 'Hubo un problema al actualizar el evento. Intenta nuevamente.',
+        details: {
+          error: error?.message,
+        },
+      };
+    }
+  },
+};
+
+/**
  * Export all available tools.
  */
-export const availableTools: AITool[] = [getAvailablePlacesTool, createEventTool];
+export const availableTools: AITool[] = [
+  getAvailablePlacesTool,
+  getPlaceReviewsTool,
+  getUpcomingEventsTool,
+  updateEventTool,
+  createEventTool,
+];

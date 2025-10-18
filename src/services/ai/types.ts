@@ -44,6 +44,23 @@ export interface AvailablePlace {
   city: string;
   capacity: number | null;
   type: string | null;
+  summary: string;
+  internalNotes?: {
+    includeCapacity: boolean;
+    direction?: string | null;
+  };
+}
+
+export interface PlaceReview {
+  reviewer: {
+    id: number;
+    name: string | null;
+    lastName: string | null;
+  };
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  tone: 'positive' | 'neutral' | 'negative';
 }
 
 export interface CreateEventParams {
@@ -64,10 +81,13 @@ export interface EventCreationResult {
       city: string;
     };
     timeBegin: Date;
+    timeEnd?: Date | null;
   };
   message: string;
   reason?: string;
   details?: any;
+  localTimeDescription?: string;
+  localEndDescription?: string | null;
 }
 
 export interface EventAssistantContext {
@@ -82,4 +102,41 @@ export interface UserContext {
   lastName?: string | null;
   lastEventDate?: Date | null;
   lastPlaceName?: string | null;
+}
+
+export interface UpcomingEvent {
+  id: number;
+  name: string;
+  timeBegin: string;
+  timeEnd?: string | null;
+  status: string;
+  localTimeDescription: string;
+  localEndDescription?: string | null;
+  place: {
+    id: number;
+    name: string;
+    city: string | null;
+    summary: string;
+  };
+}
+
+export interface EventUpdateResult {
+  success: boolean;
+  message: string;
+  event?: {
+    id: number;
+    name: string;
+    timeBegin: string;
+    timeEnd?: string | null;
+    localTimeDescription: string;
+    localEndDescription?: string | null;
+    description?: string | null;
+    place: {
+      id: number;
+      name: string;
+      city: string | null;
+    };
+  };
+  reason?: string;
+  details?: any;
 }
