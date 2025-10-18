@@ -27,7 +27,7 @@ export class GeminiClient {
 
     // Use gemini-1.5-pro for better function calling support
     // gemini-2.0-flash-exp has issues with function calling (generates code instead)
-    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
     this.model = this.genAI.getGenerativeModel({
       model: modelName,

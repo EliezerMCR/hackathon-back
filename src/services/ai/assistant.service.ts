@@ -132,7 +132,10 @@ export class AIAssistantService {
         parts: [{ text: buildEventAssistantPrompt(formatPromptContext(userContext)) }],
       };
 
-      const buildFallbackResponse = (lastToolCall: { name: string; response: any } | null): string | null => {
+      const buildToolSummaryPrompt = (
+        lastToolCall: { name: string; response: any } | null,
+        context: UserContext,
+      ): string | null => {
         if (!lastToolCall) {
           return null;
         }
@@ -140,17 +143,65 @@ export class AIAssistantService {
         if (lastToolCall.name === 'get_available_places') {
           const data = lastToolCall.response?.data;
           if (Array.isArray(data) && data.length > 0) {
-            const lines = data
+            const placeSummaries = data
               .slice(0, 5)
               .map((place: any, index: number) => {
                 const city = place.city ? ` en ${place.city}` : '';
                 const summary = place.summary ? ` - ${place.summary}` : '';
                 return `${index + 1}. ${place.name}${city}${summary}`;
-              });
-            return ['Encontré estas opciones:', ...lines].join('\n');
+              })
+              .join('\n');
+            const cityText = context.city ? `en ${context.city}` : '';
+
+            return [
+              'Genera una respuesta natural en español usando esta lista de lugares.',
+              `Lugares ${cityText}:`,
+              placeSummaries,
+              'Preséntalos de forma amable y pregunta si quiere más detalles o reservar.',
+            ].join('\n');
           }
           if (Array.isArray(data) && data.length === 0) {
-            return 'No pude encontrar lugares con los criterios actuales.';
+            const cityText = context.city ? ` en ${context.city}` : '';
+            return `Explica que no se encontraron lugares disponibles${cityText} y sugiere cambiar filtros o ciudad.`;
+          }
+        }
+
+        return null;
+      };
+
+      const buildFallbackResponse = (
+        lastToolCall: { name: string; response: any } | null,
+        context: UserContext,
+      ): string | null => {
+        if (!lastToolCall) {
+          return null;
+        }
+
+        if (lastToolCall.name === 'get_available_places') {
+          const data = lastToolCall.response?.data;
+          if (Array.isArray(data) && data.length > 0) {
+            const topPlaces = data.slice(0, 5);
+            const cityLabel = context.city ? ` en ${context.city}` : '';
+            const header =
+              topPlaces.length === 1
+                ? `Encontré una opción${cityLabel} que podría interesarte:`
+                : `Encontré ${topPlaces.length} opciones${cityLabel}:`;
+
+            const lines = topPlaces.map((place: any, index: number) => {
+              const placeCity = place.city ? ` en ${place.city}` : '';
+              const summary = place.summary ? ` - ${place.summary}` : '';
+              return `${index + 1}. ${place.name}${placeCity}${summary}`;
+            });
+
+            return [
+              header,
+              ...lines,
+              'Puedo darte más detalles o ayudarte a reservar alguno, ¿qué prefieres?',
+            ].join('\n');
+          }
+          if (Array.isArray(data) && data.length === 0) {
+            const cityText = context.city ? ` en ${context.city}` : '';
+            return `No encontré lugares disponibles${cityText} con esos criterios. Podemos intentar otra ciudad o tipo de lugar si quieres.`;
           }
         }
 
@@ -256,8 +307,24 @@ export class AIAssistantService {
 
           if (!responseText || responseText.trim() === '') {
             console.error('[AI Error] Model returned empty response after tool execution');
+            const summaryPrompt = buildToolSummaryPrompt(lastToolCall, userContext);
+
+            if (summaryPrompt) {
+              try {
+                const recoveryResult = await chat.sendMessage([{ text: summaryPrompt }]);
+                const recoveryText = recoveryResult.response.text();
+
+                if (recoveryText && recoveryText.trim() !== '') {
+                  finalResponse = recoveryText;
+                  break;
+                }
+              } catch (error) {
+                console.error('Error during recovery prompt:', error);
+              }
+            }
+
             finalResponse =
-              buildFallbackResponse(lastToolCall) ??
+              buildFallbackResponse(lastToolCall, userContext) ??
               'Lo siento, hubo un problema al procesar tu solicitud. Por favor intenta de nuevo.';
           } else {
             finalResponse = responseText;
