@@ -66,6 +66,7 @@ model User {
   requestsAccepted    Request[]          @relation("RequestAcceptedBy")
   boughtTickets       Bought_Ticket[]
   reviews             Review[]
+  notifications       Notification[]     @relation("UserNotifications")
 
   @@map("User")
 }
@@ -274,4 +275,16 @@ model Category {
   createdBy Int      @map("created_by")
 
   @@map("Category")
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  title     String   @db.VarChar(255)
+  message   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  read      Boolean  @default(false)
+  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("Notification")
 }
