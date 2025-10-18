@@ -396,7 +396,6 @@ router.get('/:id/content', authenticate, async (req: any, res: any, next) => {
     const [
       places,
       organizedEvents,
-      communities,
       reviews,
     ] = await Promise.all([
       // Places owned by user (only accepted ones for public view)
@@ -447,22 +446,6 @@ router.get('/:id/content', authenticate, async (req: any, res: any, next) => {
           tickets: true,
         },
       }),
-      // Communities where user is member (public info only)
-      prisma.community_Member.findMany({
-        where: { 
-          userId: requestedId,
-          exitAt: null, // Only active memberships
-        },
-        include: {
-          community: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-            },
-          },
-        },
-      }),
       // Reviews made by user
       prisma.review.findMany({
         where: { userId: requestedId },
@@ -486,13 +469,27 @@ router.get('/:id/content', authenticate, async (req: any, res: any, next) => {
       }),
     ]);
 
+    const communities = await prisma.community_Member.findMany({
+      where: { 
+        userId: requestedId,
+        exitAt: null, // Only active memberships
+      },
+      include: {
+        community: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
     res.json({
       places,
       organizedEvents,
       communities: communities.map(cm => ({
         id: cm.community.id,
         name: cm.community.name,
-        description: cm.community.description,
         role: cm.role,
         joinedAt: cm.createdAt,
       })),
