@@ -40,6 +40,7 @@ const formatPromptContext = (context?: UserContext) => {
       [context.name, context.lastName].filter(Boolean).join(' ') || context.name || context.lastName || undefined,
     lastEventDate: formatDateForPrompt(context.lastEventDate),
     lastPlaceName: context.lastPlaceName ?? null,
+    defaultCity: context.city ?? null,
   };
 };
 
@@ -92,6 +93,7 @@ export class AIAssistantService {
       lastName: user.lastName,
       lastEventDate: lastEvent?.timeBegin ?? null,
       lastPlaceName: lastEvent?.place?.name ?? null,
+      city: user.city ?? null,
     };
   }
 

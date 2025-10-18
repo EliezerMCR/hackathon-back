@@ -15,7 +15,6 @@ const createEventSchema = z.object({
   timeBegin: z.string().datetime(),
   timeEnd: z.string().datetime().optional(),
   placeId: z.number().int().positive(),
-  organizerId: z.number().int().positive(),
   communityId: z.number().int().positive().optional(),
   minAge: z.number().int().min(0).max(100).default(18),
   externalUrl: z.string().url().optional(),
@@ -295,33 +294,12 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
       });
     }
 
-    const {
-      placeId,
-      organizerId,
-      communityId,
-      timeBegin,
-      timeEnd,
-      visibility,
-      ...eventData
-    } =
-      validation.data;
+    const { placeId, communityId, timeBegin, timeEnd, visibility, ...eventData } = validation.data;
 
     const actor = ensureRole(req.user, [ROLE.ADMIN, ROLE.MARKET]);
+    const organizerId = actor.userId;
 
-    if (actor.role === ROLE.MARKET && organizerId !== actor.userId) {
-      return res.status(403).json({ error: 'Markets can only organize events for themselves' });
-    }
-
-    await ensureCanManagePlace(req.user, placeId);
-
-    // Verify organizer exists (admins might create for other organizers)
-    const organizer = await prisma.user.findUnique({
-      where: { id: organizerId },
-    });
-
-    if (!organizer) {
-      return res.status(404).json({ error: 'Organizer user not found' });
-    }
+    // await ensureCanManagePlace(req.user, placeId);
 
     if (visibility === 'PUBLIC' && !communityId) {
       return res

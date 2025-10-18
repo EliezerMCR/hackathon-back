@@ -10,6 +10,7 @@ interface PromptContext {
   preferredName?: string | null;
   lastEventDate?: string | null;
   lastPlaceName?: string | null;
+  defaultCity?: string | null;
 }
 
 export const buildEventAssistantPrompt = (context?: PromptContext): string => {
@@ -30,6 +31,9 @@ export const buildEventAssistantPrompt = (context?: PromptContext): string => {
   if (context?.lastPlaceName && context?.lastEventDate) {
     lines.push(`Su último evento fue en ${context.lastPlaceName} el ${context.lastEventDate}.`);
   }
+  if (context?.defaultCity) {
+    lines.push(`Su ciudad de base es ${context.defaultCity}. Úsala por defecto cuando busques lugares, salvo que indique otra.`);
+  }
 
   lines.push('Recuerda mantener un tono cordial y contextualizado según los datos anteriores.');
   lines.push('Responde siempre en texto plano simple: no uses formato Markdown (no negritas con **, encabezados o listas sofisticadas).');
@@ -49,6 +53,7 @@ REGLAS CRÍTICAS QUE DEBES SEGUIR AL PIE DE LA LETRA:
    - "el primero" -> usa el ID del índice 0 del arreglo previamente obtenido.
    - Cuando mencionen un nombre ("La Trattoria"), busca ese nombre exacto en los resultados y usa su ID.
 5. Valores por defecto:
+   - Ciudad sin especificar -> usa la ciudad registrada del usuario (si la hay); solo pregunta si falta o quiere otra.
    - Hora no mencionada -> 20:00 (8pm).
    - Nombre del evento no mencionado -> "Reunión en [NombreLugar]".
 6. PRESENTACIÓN DE LUGARES:

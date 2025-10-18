@@ -55,3 +55,4 @@
 - Al crear eventos en comunidades, valida membresía y restringe visibilidad pública a eventos con comunidad.
 - Procesa fechas en lenguaje natural en español (por ejemplo “lunes próximo a las 2pm”) y normaliza a la zona configurada.
 - Sanitiza reseñas, evita inventar información y usa exclusivamente datos provenientes de las herramientas.
+- Por defecto, cuando busca lugares (`get_available_places`), usa la ciudad registrada del usuario y solo solicita otra si está ausente o el usuario pide cambiarla.

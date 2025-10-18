@@ -361,23 +361,41 @@ export const getAvailablePlacesTool: AITool = {
           'Number of results to return. Default is 10 to give user good options to choose from.',
       },
     },
-    required: ['city'],
+    required: [],
   },
-  handler: async (params: {
-    city?: string;
-    type?: string;
-    minCapacity?: number;
-    limit?: number;
-  }): Promise<AvailablePlace[]> => {
-    const { city, type, minCapacity, limit = 10 } = params;
+  handler: async (
+    params: {
+      city?: string;
+      type?: string;
+      minCapacity?: number;
+      limit?: number;
+    },
+    userId: number
+  ): Promise<AvailablePlace[]> => {
+    let { city, type, minCapacity, limit = 10 } = params;
+
+    const trimmedCity = city?.trim();
+
+    let effectiveCity = trimmedCity;
+    if (!effectiveCity) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { city: true },
+      });
+      effectiveCity = user?.city?.trim();
+    }
+
+    if (!effectiveCity) {
+      throw new Error('CITY_REQUIRED');
+    }
 
     const where: any = {
       status: 'ACCEPTED',
     };
 
-    if (city) {
+    if (effectiveCity) {
       where.city = {
-        contains: city,
+        contains: effectiveCity,
         mode: 'insensitive',
       };
     }
