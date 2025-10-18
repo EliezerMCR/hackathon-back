@@ -37,7 +37,42 @@ async function main() {
     },
   ];
 
-  for (const userData of adminUsers) {
+  const marketUsers = [
+    {
+      name: 'Market',
+      lastName: 'User1',
+      email: 'market1@example.com',
+      password: 'password123',
+      role: 'MARKET',
+      gender: "MAN"
+    },
+    {
+      name: 'Market',
+      lastName: 'User2',
+      email: 'market2@example.com',
+      password: 'password123',
+      role: 'MARKET',
+      gender: "MAN"
+    },
+  ];
+
+  for (const userData of marketUsers) {
+    const hashedPassword = await bcrypt.hash(userData.password, 10);
+    await prisma.user.create({
+      data: {
+        name: userData.name,
+        lastName: userData.lastName,
+        email: userData.email,
+        password: hashedPassword,
+        birthDate: new Date(),
+        gender: "MAN",
+        documentId: 0,
+        role: "MARKET",
+      },
+    });
+  }
+
+  /*for (const userData of adminUsers) {
     const hashedPassword = await bcrypt.hash(userData.password, 10);
     await prisma.user.create({
       data: {
@@ -51,7 +86,7 @@ async function main() {
         role: 'ADMIN',
       },
     });
-  }
+  }*/
 
   /*for (const userData of clientUsers) {
     const hashedPassword = await bcrypt.hash(userData.password, 10);
