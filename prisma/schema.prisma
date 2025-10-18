@@ -82,6 +82,7 @@ model Place {
   ownerId     Int?         @map("id_propietary")
   createdAt   DateTime     @default(now()) @map("created_at")
   image       String?
+  description String?      @db.Text
   mapUrl      String?      @map("map_url")
   igUrl       String?      @map("ig_url")
   facebookUrl String?      @map("facebook_url")
@@ -175,10 +176,11 @@ model Review {
 }
 
 model Community {
-  id       Int                @id @default(autoincrement())
-  name     String
-  events   Event[]
-  members  Community_Member[]
+  id          Int                @id @default(autoincrement())
+  name        String
+  description String?            @db.Text
+  events      Event[]
+  members     Community_Member[]
   requests Request[]
 
   @@map("Community")
@@ -269,10 +271,11 @@ model Promotion {
 }
 
 model Category {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique @db.VarChar(100)
-  createdAt DateTime @default(now()) @map("created_at")
-  createdBy Int      @map("created_by")
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdBy   Int      @map("created_by")
 
   @@map("Category")
 }
