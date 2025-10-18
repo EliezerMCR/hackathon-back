@@ -51,6 +51,8 @@ model User {
   documentId       Int                @map("document_id")
   image            String?
   blockedUserId    Int?               @map("blocked_user")
+  passwordResetToken   String?        @map("password_reset_token") @db.VarChar(255)
+  passwordResetExpires DateTime?      @map("password_reset_expires")
   blockedUser      User?              @relation("UserBlocks", fields: [blockedUserId], references: [id])
   blockedBy        User[]             @relation("UserBlocks")
   places           Place[]            @relation("PlaceOwner")
@@ -64,8 +66,6 @@ model User {
   requestsAccepted Request[]          @relation("RequestAcceptedBy")
   boughtTickets    Bought_Ticket[]
   reviews          Review[]
-  passwordResetToken   String?
-  passwordResetExpires DateTime?
 
   @@map("User")
 }
