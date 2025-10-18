@@ -303,3 +303,24 @@ export interface UserCommunitiesResult {
   reason?: string;
   details?: any;
 }
+
+export interface RecommendedCommunity {
+  id: number;
+  name: string;
+  memberCount: number;
+  eventCount: number;
+  sampleEvents?: Array<{
+    id: number;
+    name: string;
+    timeBegin: string;
+    localTimeDescription: string;
+  }>;
+}
+
+export interface RecommendedCommunitiesResult {
+  success: boolean;
+  communities: RecommendedCommunity[];
+  message?: string;
+  reason?: string;
+  details?: any;
+}

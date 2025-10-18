@@ -22,6 +22,7 @@ import {
   CommunityOverviewResult,
   UserCommunitySummary,
   UserCommunitiesResult,
+  RecommendedCommunitiesResult,
 } from './types';
 
 const EVENT_TIMEZONE = process.env.EVENT_TIMEZONE || 'America/Caracas';
@@ -1596,6 +1597,126 @@ export const getCommunityOverviewTool: AITool = {
 };
 
 /**
+ * Tool: Recommend communities the user might join.
+ */
+export const getRecommendedCommunitiesTool: AITool = {
+  name: 'get_recommended_communities',
+  description:
+    'Sugiere comunidades populares a las que el usuario aún no pertenece, ordenadas por actividad y número de miembros.',
+  parameters: {
+    type: 'object',
+    properties: {
+      limit: {
+        type: 'number',
+        description: 'Número máximo de comunidades sugeridas (por defecto 5, máximo 20).',
+      },
+      includeMemberships: {
+        type: 'boolean',
+        description: 'Si es true, incluye comunidades donde el usuario ya es miembro (por defecto false).',
+      },
+    },
+  },
+  handler: async (
+    params: { limit?: number; includeMemberships?: boolean },
+    userId: number,
+  ): Promise<RecommendedCommunitiesResult> => {
+    const limit = Math.min(Math.max(params.limit ?? 5, 1), 20);
+    const includeMemberships = Boolean(params.includeMemberships);
+
+    const userMemberships = await prisma.community_Member.findMany({
+      where: { userId },
+      select: { communityId: true, exitAt: true },
+    });
+
+    const activeMembershipIds = userMemberships
+      .filter(membership => !membership.exitAt)
+      .map(membership => membership.communityId);
+
+    const communities = await prisma.community.findMany({
+      where: includeMemberships || activeMembershipIds.length === 0
+        ? {}
+        : {
+            id: {
+              notIn: activeMembershipIds,
+            },
+          },
+      take: limit,
+      orderBy: [
+        {
+          events: {
+            _count: 'desc',
+          },
+        },
+        {
+          members: {
+            _count: 'desc',
+          },
+        },
+      ],
+      include: {
+        _count: {
+          select: {
+            members: true,
+            events: true,
+          },
+        },
+        events: {
+          where: {
+            timeBegin: {
+              gte: new Date(),
+            },
+          },
+          orderBy: {
+            timeBegin: 'asc',
+          },
+          take: 2,
+          select: {
+            id: true,
+            name: true,
+            timeBegin: true,
+          },
+        },
+      },
+    });
+
+    if (!communities.length) {
+      return {
+        success: true,
+        communities: [],
+        message: 'No encontré comunidades recomendables en este momento. Puedes intentar con otro criterio.',
+      };
+    }
+
+    const recommendations = communities.map(community => {
+      const sampleEvents =
+        community.events?.map(event => {
+          const localTime = DateTime.fromJSDate(event.timeBegin).setZone(EVENT_TIMEZONE);
+          return {
+            id: event.id,
+            name: event.name,
+            timeBegin: event.timeBegin.toISOString(),
+            localTimeDescription: formatDateTimeEs(localTime),
+          };
+        }) ?? [];
+
+      return {
+        id: community.id,
+        name: community.name,
+        memberCount: community._count.members,
+        eventCount: community._count.events,
+        sampleEvents,
+      };
+    });
+
+    return {
+      success: true,
+      communities: recommendations,
+      message: `Estas son ${recommendations.length} comunidades activas que podrían interesarte.`,
+    };
+  },
+};
+
+/**
  * Tool: List communities the user belongs to.
  */
 export const getUserCommunitiesTool: AITool = {
@@ -2105,6 +2226,7 @@ export const availableTools: AITool[] = [
   getJoinedEventsTool,
   getCommunityEventsTool,
   getCommunityOverviewTool,
+  getRecommendedCommunitiesTool,
   getUserCommunitiesTool,
   joinCommunityEventTool,
   updateEventTool,

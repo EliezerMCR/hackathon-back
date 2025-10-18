@@ -13,3 +13,4 @@ Ambas herramientas respetan la zona horaria configurada por `EVENT_TIMEZONE` y d
 - `get_joined_events`: retorna los eventos futuros en los que el usuario ya está inscrito como asistente, incluyendo hora local, información básica de tickets y reseñas recientes.
 - `get_user_communities`: Lista las comunidades a las que pertenece el usuario autenticado, devolviendo ID, rol, miembros y eventos.
 - `get_community_overview`: Devuelve un resumen de una comunidad (nombre, miembros, eventos próximos, administradores) y confirma si el usuario forma parte.
+- `get_recommended_communities`: Sugiere comunidades activas donde el usuario aún no es miembro, ordenadas por actividad (miembros/eventos) e incluye eventos futuros destacados.
