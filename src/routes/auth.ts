@@ -8,11 +8,12 @@ import { validate } from '../middlewares/validation';
 import { loginSchema, signupSchema, signupWithPrivilegeSchema, forgotPasswordSchema, resetPasswordSchema } from '../schemas/userSchemas';
 import { HTTP401Error, HTTP409Error, HTTP400Error } from '../utils/errors';
 import { sendEmail } from '../utils/email';
+import { processImages } from '../middlewares/imageProcessor';
 
 const router = Router();
 
-router.post('/signup', validate(signupSchema), async (req, res, next) => {
-  const { name, lastName, email, password, birthDate, gender, city, country } = req.body;
+router.post('/signup', processImages(['image']), validate(signupSchema), async (req, res, next) => {
+  const { name, lastName, email, password, birthDate, gender, city, country, image } = req.body;
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -28,6 +29,7 @@ router.post('/signup', validate(signupSchema), async (req, res, next) => {
         country,
         role: 'CLIENT',
         documentId: 0,
+        image,
       },
     });
 
@@ -40,8 +42,8 @@ router.post('/signup', validate(signupSchema), async (req, res, next) => {
   }
 });
 
-router.post('/signup-with-privilege', authenticate, authorize(['ADMIN']), validate(signupWithPrivilegeSchema), async (req, res, next) => {
-  const { name, lastName, email, password, birthDate, gender, role, city, country } = req.body;
+router.post('/signup-with-privilege', authenticate, authorize(['ADMIN']), processImages(['image']), validate(signupWithPrivilegeSchema), async (req, res, next) => {
+  const { name, lastName, email, password, birthDate, gender, role, city, country, image } = req.body;
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -57,6 +59,7 @@ router.post('/signup-with-privilege', authenticate, authorize(['ADMIN']), valida
         country,
         role,
         documentId: 0,
+        image,
       },
     });
 
