@@ -1,6 +1,9 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import { ROLE } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { authenticate, AuthRequest } from '../middlewares/auth';
+import { ensureCanManageEvent, ensureCanManagePlace, ensureRole } from '../utils/authorization';
 
 const router = Router();
 
@@ -248,7 +251,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/events - Create new event
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const validation = createEventSchema.safeParse(req.body);
 
@@ -262,16 +265,15 @@ router.post('/', async (req: Request, res: Response) => {
     const { placeId, organizerId, communityId, timeBegin, timeEnd, ...eventData } =
       validation.data;
 
-    // Verify place exists
-    const place = await prisma.place.findUnique({
-      where: { id: placeId },
-    });
+    const actor = ensureRole(req.user, [ROLE.ADMIN, ROLE.MARKET]);
 
-    if (!place) {
-      return res.status(404).json({ error: 'Place not found' });
+    if (actor.role === ROLE.MARKET && organizerId !== actor.userId) {
+      return res.status(403).json({ error: 'Markets can only organize events for themselves' });
     }
 
-    // Verify organizer exists
+    await ensureCanManagePlace(req.user, placeId);
+
+    // Verify organizer exists (admins might create for other organizers)
     const organizer = await prisma.user.findUnique({
       where: { id: organizerId },
     });
@@ -280,7 +282,6 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Organizer user not found' });
     }
 
-    // Verify community exists if provided
     if (communityId) {
       const community = await prisma.community.findUnique({
         where: { id: communityId },
@@ -331,12 +332,12 @@ router.post('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error creating event:', error);
-    res.status(500).json({ error: 'Failed to create event' });
+    next(error);
   }
 });
 
 // PUT /api/events/:id - Update event
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const eventId = parseInt(id, 10);
@@ -345,6 +346,8 @@ router.put('/:id', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid event ID' });
     }
 
+    await ensureCanManageEvent(req.user, eventId);
+
     const validation = updateEventSchema.safeParse(req.body);
 
     if (!validation.success) {
@@ -352,6 +355,10 @@ router.put('/:id', async (req: Request, res: Response) => {
         error: 'Validation failed',
         details: validation.error.errors,
       });
+    }
+
+    if (validation.data.status && req.user?.role !== ROLE.ADMIN) {
+      return res.status(403).json({ error: 'Only admins can change event status' });
     }
 
     const { timeBegin, timeEnd, ...rest } = validation.data;
@@ -395,37 +402,43 @@ router.put('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    res.status(500).json({ error: 'Failed to update event' });
+    next(error);
   }
 });
 
 // DELETE /api/events/:id - Delete event
-router.delete('/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const eventId = parseInt(id, 10);
+router.delete(
+  '/:id',
+  authenticate,
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const eventId = parseInt(id, 10);
 
-    if (isNaN(eventId)) {
-      return res.status(400).json({ error: 'Invalid event ID' });
+      if (isNaN(eventId)) {
+        return res.status(400).json({ error: 'Invalid event ID' });
+      }
+
+      await ensureCanManageEvent(req.user, eventId);
+
+      const deleted = await prisma.event.delete({
+        where: { id: eventId },
+      });
+
+      res.status(200).json({
+        message: `Evento '${deleted.name}' eliminado exitosamente`,
+        id: deleted.id,
+      });
+    } catch (error: any) {
+      console.error('Error deleting event:', error);
+
+      if (error.code === 'P2025') {
+        return res.status(404).json({ error: 'Event not found' });
+      }
+
+      next(error);
     }
-
-    const deleted = await prisma.event.delete({
-      where: { id: eventId },
-    });
-
-    res.status(200).json({
-      message: `Evento '${deleted.name}' eliminado exitosamente`,
-      id: deleted.id,
-    });
-  } catch (error: any) {
-    console.error('Error deleting event:', error);
-
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    res.status(500).json({ error: 'Failed to delete event' });
-  }
-});
+  },
+);
 
 export default router;

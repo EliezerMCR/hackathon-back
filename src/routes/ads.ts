@@ -1,6 +1,8 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { authenticate, AuthRequest } from '../middlewares/auth';
+import { ensureCanManageAd, ensureCanManageEvent, ensureCanManagePlace } from '../utils/authorization';
 
 const router = Router();
 
@@ -114,7 +116,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/ads - Create new ad
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const validation = createAdSchema.safeParse(req.body);
 
@@ -127,21 +129,15 @@ router.post('/', async (req: Request, res: Response) => {
 
     const { placeId, eventId, timeBegin, timeEnd } = validation.data;
 
-    // Verify place exists
-    const place = await prisma.place.findUnique({ where: { id: placeId } });
-    if (!place) {
-      return res.status(404).json({ error: 'Place not found' });
-    }
+    await ensureCanManagePlace(req.user, placeId);
 
-    // Verify event exists if provided
     if (eventId) {
-      const event = await prisma.event.findUnique({ where: { id: eventId } });
-      if (!event) {
-        return res.status(404).json({ error: 'Event not found' });
+      const event = await ensureCanManageEvent(req.user, eventId);
+      if (event.placeId !== placeId) {
+        return res.status(400).json({ error: 'Event must belong to the selected place' });
       }
     }
 
-    // Validate dates
     const beginDate = new Date(timeBegin);
     const endDate = new Date(timeEnd);
 
@@ -179,12 +175,12 @@ router.post('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error creating ad:', error);
-    res.status(500).json({ error: 'Failed to create ad' });
+    next(error);
   }
 });
 
 // PUT /api/ads/:id - Update ad
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const adId = parseInt(id, 10);
@@ -192,6 +188,8 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (isNaN(adId)) {
       return res.status(400).json({ error: 'Invalid ad ID' });
     }
+
+    await ensureCanManageAd(req.user, adId);
 
     const validation = updateAdSchema.safeParse(req.body);
 
@@ -231,12 +229,12 @@ router.put('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Ad not found' });
     }
 
-    res.status(500).json({ error: 'Failed to update ad' });
+    next(error);
   }
 });
 
 // DELETE /api/ads/:id - Delete ad
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const adId = parseInt(id, 10);
@@ -244,6 +242,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
     if (isNaN(adId)) {
       return res.status(400).json({ error: 'Invalid ad ID' });
     }
+
+    await ensureCanManageAd(req.user, adId);
 
     const deleted = await prisma.ad.delete({
       where: { id: adId },
@@ -261,7 +261,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Ad not found' });
     }
 
-    res.status(500).json({ error: 'Failed to delete ad' });
+    next(error);
   }
 });
 

@@ -1,11 +1,15 @@
 
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { ROLE } from '@prisma/client';
 import { HTTP401Error, HTTP403Error } from '../utils/errors';
 
-interface AuthRequest extends Request {
-  user?: { userId: number; role: string };
+export interface AuthUser {
+  userId: number;
+  role: ROLE;
 }
+
+export type AuthRequest = Request & { user?: AuthUser };
 
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
   const token = req.headers.authorization?.split(' ')[1];
@@ -20,8 +24,16 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
       throw new Error('JWT_SECRET is not defined in environment variables');
     }
 
-    const decoded = jwt.verify(token, jwtSecret);
-    req.user = decoded as { userId: number; role: string };
+    const decoded = jwt.verify(token, jwtSecret) as jwt.JwtPayload & Partial<AuthUser>;
+
+    if (typeof decoded !== 'object' || typeof decoded.userId !== 'number' || !decoded.role) {
+      return next(new HTTP401Error('Invalid token payload'));
+    }
+
+    req.user = {
+      userId: decoded.userId,
+      role: decoded.role as ROLE,
+    };
     next();
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
@@ -34,9 +46,17 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
   }
 };
 
-export const authorize = (roles: string[]) => {
+export const authorize = (roles: ROLE[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    if (!req.user) {
+      return next(new HTTP403Error('Access denied'));
+    }
+
+    if (req.user.role === ROLE.ADMIN) {
+      return next();
+    }
+
+    if (!roles.includes(req.user.role)) {
       return next(new HTTP403Error('Access denied'));
     }
     next();

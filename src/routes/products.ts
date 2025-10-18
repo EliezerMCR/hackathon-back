@@ -1,6 +1,8 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { authenticate, AuthRequest } from '../middlewares/auth';
+import { ensureCanManagePlace, ensureCanManageProduct } from '../utils/authorization';
 
 const router = Router();
 
@@ -119,7 +121,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/products - Create new product
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const validation = createProductSchema.safeParse(req.body);
 
@@ -132,14 +134,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     const { placeId, ...productData } = validation.data;
 
-    // Verify place exists
-    const place = await prisma.place.findUnique({
-      where: { id: placeId },
-    });
-
-    if (!place) {
-      return res.status(404).json({ error: 'Place not found' });
-    }
+    await ensureCanManagePlace(req.user, placeId);
 
     const product = await prisma.product.create({
       data: {
@@ -163,12 +158,12 @@ router.post('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error creating product:', error);
-    res.status(500).json({ error: 'Failed to create product' });
+    next(error);
   }
 });
 
 // PUT /api/products/:id - Update product
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const productId = parseInt(id, 10);
@@ -176,6 +171,8 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (isNaN(productId)) {
       return res.status(400).json({ error: 'Invalid product ID' });
     }
+
+    await ensureCanManageProduct(req.user, productId);
 
     const validation = updateProductSchema.safeParse(req.body);
 
@@ -208,12 +205,12 @@ router.put('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    res.status(500).json({ error: 'Failed to update product' });
+    next(error);
   }
 });
 
 // DELETE /api/products/:id - Delete product
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const productId = parseInt(id, 10);
@@ -221,6 +218,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
     if (isNaN(productId)) {
       return res.status(400).json({ error: 'Invalid product ID' });
     }
+
+    await ensureCanManageProduct(req.user, productId);
 
     const deleted = await prisma.product.delete({
       where: { id: productId },
@@ -237,7 +236,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    res.status(500).json({ error: 'Failed to delete product' });
+    next(error);
   }
 });
 
