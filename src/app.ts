@@ -22,6 +22,7 @@ import promotionRoutes from './routes/promotions';
 import adRoutes from './routes/ads';
 import reviewRoutes from './routes/reviews';
 import categoryRoutes from './routes/categories';
+import notificationRoutes from './routes/notifications';
 import { authenticate, authorize } from './middlewares/auth';
 import { errorHandler } from './middlewares/errorHandler';
 
@@ -68,6 +69,7 @@ app.use('/api/promotions', promotionRoutes);
 app.use('/api/ads', adRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Protected route example
 app.get('/api/protected', authenticate, authorize(['ADMIN']), (req, res) => {

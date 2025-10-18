@@ -17,6 +17,7 @@
 - [Anuncios (Ads)](#-anuncios-ads)
 - [Reviews](#-reviews)
 - [Categorías](#-categorías)
+- [Notificaciones](#-notificaciones)
 
 ---
 
@@ -1254,7 +1255,211 @@ JWT_EXPIRES_IN="7d"
 
 ---
 
-## 📝 Notas Adicionales
+---
+
+## � Notificaciones
+
+### GET /api/notifications
+Obtiene las notificaciones del usuario autenticado. Los administradores pueden ver todas.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `read` (opcional): `"true"` | `"false"` - Filtrar por estado de lectura
+- `userId` (opcional, solo ADMIN): ID del usuario para filtrar
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": 1,
+    "userId": 2,
+    "title": "Nuevo evento disponible",
+    "message": "Se ha publicado un nuevo evento en tu comunidad favorita",
+    "createdAt": "2025-10-17T10:30:00Z",
+    "read": false,
+    "user": {
+      "id": 2,
+      "name": "María",
+      "lastName": "González",
+      "email": "maria@example.com"
+    }
+  }
+]
+```
+
+---
+
+### GET /api/notifications/:id
+Obtiene una notificación específica. Los usuarios solo pueden ver sus propias notificaciones.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response:** `200 OK`
+```json
+{
+  "id": 1,
+  "userId": 2,
+  "title": "Nuevo evento disponible",
+  "message": "Se ha publicado un nuevo evento en tu comunidad favorita",
+  "createdAt": "2025-10-17T10:30:00Z",
+  "read": false,
+  "user": {
+    "id": 2,
+    "name": "María",
+    "lastName": "González",
+    "email": "maria@example.com"
+  }
+}
+```
+
+**Errores:**
+- `404 Not Found`: Notificación no encontrada
+- `403 Forbidden`: No tienes permiso para ver esta notificación
+
+---
+
+### POST /api/notifications
+Crea una nueva notificación (Solo ADMIN).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Body:**
+```json
+{
+  "userId": 2,
+  "title": "Nuevo evento disponible",
+  "message": "Se ha publicado un nuevo evento en tu comunidad favorita"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "id": 1,
+  "userId": 2,
+  "title": "Nuevo evento disponible",
+  "message": "Se ha publicado un nuevo evento en tu comunidad favorita",
+  "createdAt": "2025-10-17T10:30:00Z",
+  "read": false,
+  "user": {
+    "id": 2,
+    "name": "María",
+    "lastName": "González",
+    "email": "maria@example.com"
+  }
+}
+```
+
+**Errores:**
+- `400 Bad Request`: Datos inválidos
+- `404 Not Found`: Usuario no encontrado
+- `403 Forbidden`: Solo administradores pueden crear notificaciones
+
+---
+
+### PUT /api/notifications/:id
+Actualiza una notificación. Los usuarios solo pueden marcar como leída, los administradores pueden editar todos los campos.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Body (Usuario normal):**
+```json
+{
+  "read": true
+}
+```
+
+**Body (Administrador):**
+```json
+{
+  "title": "Título actualizado",
+  "message": "Mensaje actualizado",
+  "read": true
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "id": 1,
+  "userId": 2,
+  "title": "Nuevo evento disponible",
+  "message": "Se ha publicado un nuevo evento en tu comunidad favorita",
+  "createdAt": "2025-10-17T10:30:00Z",
+  "read": true,
+  "user": {
+    "id": 2,
+    "name": "María",
+    "lastName": "González",
+    "email": "maria@example.com"
+  }
+}
+```
+
+**Errores:**
+- `404 Not Found`: Notificación no encontrada
+- `403 Forbidden`: No tienes permiso para actualizar esta notificación
+- `400 Bad Request`: Datos inválidos
+
+---
+
+### PUT /api/notifications/mark-all-read
+Marca todas las notificaciones del usuario como leídas.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response:** `200 OK`
+```json
+{
+  "message": "3 notificaciones marcadas como leídas",
+  "count": 3
+}
+```
+
+---
+
+### DELETE /api/notifications/:id
+Elimina una notificación. Los usuarios pueden eliminar sus propias notificaciones, los administradores pueden eliminar todas.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Notificación eliminada exitosamente",
+  "notification": {
+    "id": 1,
+    "title": "Nuevo evento disponible"
+  }
+}
+```
+
+**Errores:**
+- `404 Not Found`: Notificación no encontrada
+- `403 Forbidden`: No tienes permiso para eliminar esta notificación
+
+---
+
+## 📝 Notas Importantes
 
 1. **Paginación**: Los endpoints que retornan listas suelen soportar `page` y `limit`
 2. **Fechas**: Todas las fechas deben estar en formato ISO 8601
