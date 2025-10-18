@@ -31,3 +31,13 @@ export const signupSchema = z.object({
 export const signupWithPrivilegeSchema = signupSchema.extend({
     role: z.enum(['ADMIN', 'MARKET']),
 });
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  password: z.string().min(8),
+  code: z.string().regex(/^\d{6}$/),
+});
+

@@ -64,6 +64,8 @@ model User {
   requestsAccepted Request[]          @relation("RequestAcceptedBy")
   boughtTickets    Bought_Ticket[]
   reviews          Review[]
+  passwordResetToken   String?
+  passwordResetExpires DateTime?
 
   @@map("User")
 }

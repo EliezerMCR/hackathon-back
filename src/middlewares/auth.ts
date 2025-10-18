@@ -26,7 +26,7 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
 export const authorize = (roles: string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {
-      return next(new HTTP403Error('Forbidden'));
+      return next(new HTTP403Error('Access denied'));
     }
     next();
   };

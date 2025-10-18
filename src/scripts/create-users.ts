@@ -11,19 +11,11 @@ async function main() {
     {
       name: 'Admin',
       lastName: 'User1',
-      email: 'admin1@example.com',
+      email: 'blancojhonaiker@gmail.com',
       password: 'password123',
       role: 'ADMIN',
       gender: "MAN"
-    },
-    {
-      name: 'Admin',
-      lastName: 'User2',
-      email: 'admin2@example.com',
-      password: 'password123',
-      role: 'ADMIN',
-      gender: "MAN"
-    },
+    }
   ];
 
   const clientUsers = [
@@ -61,7 +53,7 @@ async function main() {
     });
   }
 
-  for (const userData of clientUsers) {
+  /*for (const userData of clientUsers) {
     const hashedPassword = await bcrypt.hash(userData.password, 10);
     await prisma.user.create({
       data: {
@@ -75,7 +67,7 @@ async function main() {
         role: 'CLIENT',
       },
     });
-  }
+  }*/
 
   console.log('Seeding finished.');
 }

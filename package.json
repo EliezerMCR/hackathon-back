@@ -19,7 +19,8 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "clean": "rm -rf node_modules dist .next",
-    "reinstall": "npm run clean && npm install"
+    "reinstall": "npm run clean && npm install",
+    "create-users": "tsx src/scripts/create-users.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
@@ -32,6 +33,7 @@
     "express": "^4.18.2",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^7.0.9",
     "nodemon": "^3.1.10",
     "prisma": "latest",
     "zod": "^3.22.4"
@@ -42,6 +44,7 @@
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.10.0",
+    "@types/nodemailer": "^7.0.2",
     "@typescript-eslint/eslint-plugin": "^8.46.1",
     "@typescript-eslint/parser": "^8.46.1",
     "eslint": "^8.56.0",

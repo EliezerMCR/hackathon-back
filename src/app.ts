@@ -10,6 +10,7 @@ import communityRoutes from './routes/communities';
 import requestRoutes from './routes/requests';
 import invitationRoutes from './routes/invitations';
 import ticketRoutes from './routes/tickets';
+import productRoutes from './routes/products';
 
 // Load environment variables
 dotenv.config();
@@ -41,6 +42,7 @@ app.use('/api/communities', communityRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/invitations', invitationRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/products', productRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
