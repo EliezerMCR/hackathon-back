@@ -13,7 +13,7 @@ const createPlaceSchema = z.object({
   country: z.string().min(1).max(100),
   capacity: z.number().int().positive().optional(),
   type: z.string().max(50).optional(),
-  proprietorId: z.number().int().positive().optional(),
+  ownerId: z.number().int().positive().optional(),
   mapUrl: z.string().url().optional(),
   igUrl: z.string().url().optional(),
   facebookUrl: z.string().url().optional(),
@@ -68,7 +68,7 @@ router.get('/', async (req: Request, res: Response) => {
         skip,
         take: limitNum,
         include: {
-          proprietor: {
+          owner: {
             select: {
               id: true,
               name: true,
@@ -119,7 +119,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     const place = await prisma.place.findUnique({
       where: { id: placeId },
       include: {
-        proprietor: {
+        owner: {
           select: {
             id: true,
             name: true,
@@ -194,21 +194,21 @@ router.post('/', async (req: Request, res: Response) => {
 
     const data = validation.data;
 
-    // Verify proprietor exists if provided
-    if (data.proprietorId) {
-      const proprietor = await prisma.user.findUnique({
-        where: { id: data.proprietorId },
+    // Verify owner exists if provided
+    if (data.ownerId) {
+      const owner = await prisma.user.findUnique({
+        where: { id: data.ownerId },
       });
 
-      if (!proprietor) {
-        return res.status(404).json({ error: 'Proprietor user not found' });
+      if (!owner) {
+        return res.status(404).json({ error: 'Owner user not found' });
       }
     }
 
     const place = await prisma.place.create({
       data,
       include: {
-        proprietor: {
+        owner: {
           select: {
             id: true,
             name: true,
@@ -252,7 +252,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       where: { id: placeId },
       data: validation.data,
       include: {
-        proprietor: {
+        owner: {
           select: {
             id: true,
             name: true,

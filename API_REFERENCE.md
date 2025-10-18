@@ -1,29 +1,509 @@
-# API Reference - Semana 1
+# 📚 API Reference - Backend Hackathon
 
-## 📋 Tabla de Contenidos
-- [Comunidades](#comunidades)
-- [Miembros de Comunidad](#miembros-de-comunidad)
-- [Solicitudes (Requests)](#solicitudes-requests)
-- [Invitaciones](#invitaciones)
-- [Tickets (Compras)](#tickets-compras)
+> Documentación completa de todos los endpoints del API
+
+## 📋 Índice
+
+- [Autenticación](#-autenticación)
+- [Usuarios](#-usuarios)
+- [Lugares (Places)](#-lugares-places)
+- [Productos](#-productos)
+- [Eventos](#-eventos)
+- [Comunidades](#-comunidades)
+- [Solicitudes (Requests)](#-solicitudes-requests)
+- [Invitaciones](#-invitaciones)
+- [Tickets](#-tickets)
+- [Promociones](#-promociones)
+- [Anuncios (Ads)](#-anuncios-ads)
+- [Reviews](#-reviews)
+
+---
+
+## 🔐 Autenticación
+
+### POST /api/auth/signup
+Registro de nuevo usuario (rol CLIENT por defecto).
+
+**Body:**
+```json
+{
+  "name": "Juan",
+  "lastName": "Pérez",
+  "email": "juan@example.com",
+  "password": "password123",
+  "birthDate": "1990-01-15",
+  "gender": "MAN",
+  "city": "Lima",
+  "country": "Perú"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "message": "User created successfully"
+}
+```
+
+---
+
+### POST /api/auth/signup-with-privilege
+Registro con privilegios (solo ADMIN). Requiere autenticación.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Body:**
+```json
+{
+  "name": "María",
+  "lastName": "García",
+  "email": "maria@example.com",
+  "password": "password123",
+  "birthDate": "1985-05-20",
+  "gender": "WOMAN",
+  "role": "MARKET",
+  "city": "Lima",
+  "country": "Perú"
+}
+```
+
+**Response:** `201 Created`
+
+---
+
+### POST /api/auth/login
+Iniciar sesión y obtener token JWT.
+
+**Body:**
+```json
+{
+  "email": "juan@example.com",
+  "password": "password123"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": 1,
+    "email": "juan@example.com",
+    "name": "Juan",
+    "lastName": "Pérez",
+    "role": "CLIENT",
+    "membership": "NORMAL"
+  }
+}
+```
+
+---
+
+## 👥 Usuarios
+
+### GET /api/users
+Obtener todos los usuarios.
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": 1,
+    "name": "Juan",
+    "lastName": "Pérez",
+    "email": "juan@example.com",
+    "role": "CLIENT",
+    "membership": "NORMAL",
+    "city": "Lima",
+    "country": "Perú"
+  }
+]
+```
+
+---
+
+### GET /api/users/:id
+Obtener un usuario específico.
+
+**Response:** `200 OK`
+
+---
+
+### PUT /api/users/:id
+Actualizar un usuario.
+
+**Body:**
+```json
+{
+  "name": "Juan Carlos",
+  "city": "Cusco"
+}
+```
+
+**Response:** `200 OK`
+
+---
+
+### DELETE /api/users/:id
+Eliminar un usuario.
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Usuario 'Juan Pérez' eliminado exitosamente",
+  "id": 1
+}
+```
+
+---
+
+## 📍 Lugares (Places)
+
+### GET /api/places
+Obtener lugares con filtros y paginación.
+
+**Query Parameters:**
+- `city` - Filtrar por ciudad
+- `country` - Filtrar por país
+- `type` - Filtrar por tipo de lugar
+- `status` - PENDING | ACCEPTED | REJECTED
+- `page` - Número de página (default: 1)
+- `limit` - Resultados por página (default: 10)
+
+**Response:** `200 OK`
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "name": "Bar Central",
+      "direction": "Av. Principal 123",
+      "city": "Lima",
+      "country": "Perú",
+      "capacity": 150,
+      "type": "Bar",
+      "status": "ACCEPTED",
+      "owner": {
+        "id": 2,
+        "name": "María",
+        "lastName": "García"
+      },
+      "_count": {
+        "products": 25,
+        "events": 8,
+        "reviews": 42
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 45,
+    "totalPages": 5
+  }
+}
+```
+
+---
+
+### GET /api/places/:id
+Obtener un lugar específico con todos sus detalles.
+
+**Response:** `200 OK`
+```json
+{
+  "id": 1,
+  "name": "Bar Central",
+  "direction": "Av. Principal 123",
+  "city": "Lima",
+  "country": "Perú",
+  "capacity": 150,
+  "type": "Bar",
+  "mapUrl": "https://maps.google.com/...",
+  "image": "https://...",
+  "owner": { ... },
+  "products": [ ... ],
+  "events": [ ... ],
+  "reviews": [ ... ]
+}
+```
+
+---
+
+### POST /api/places
+Crear un nuevo lugar.
+
+**Body:**
+```json
+{
+  "name": "Club Nocturno",
+  "direction": "Calle Luna 456",
+  "city": "Lima",
+  "country": "Perú",
+  "capacity": 300,
+  "type": "Club",
+  "ownerId": 2,
+  "mapUrl": "https://maps.google.com/...",
+  "image": "https://..."
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "message": "Place creado exitosamente",
+  "place": { ... }
+}
+```
+
+---
+
+### PUT /api/places/:id
+Actualizar un lugar.
+
+**Response:** `200 OK`
+
+---
+
+### DELETE /api/places/:id
+Eliminar un lugar.
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Place 'Bar Central' eliminado exitosamente",
+  "id": 1
+}
+```
+
+---
+
+## 🍺 Productos
+
+### GET /api/products
+Obtener productos con filtros.
+
+**Query Parameters:**
+- `placeId` - Filtrar por lugar
+- `minPrice` - Precio mínimo
+- `maxPrice` - Precio máximo
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": 1,
+    "name": "Cerveza Artesanal",
+    "price": "15.00",
+    "image": "https://...",
+    "place": {
+      "id": 1,
+      "name": "Bar Central",
+      "city": "Lima"
+    },
+    "promotions": [
+      {
+        "id": 1,
+        "discount": 20,
+        "membership": "VIP"
+      }
+    ]
+  }
+]
+```
+
+---
+
+### GET /api/products/:id
+Obtener un producto específico.
+
+**Response:** `200 OK`
+
+---
+
+### POST /api/products
+Crear un nuevo producto.
+
+**Body:**
+```json
+{
+  "name": "Cerveza Premium",
+  "price": 18.50,
+  "image": "https://...",
+  "placeId": 1
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "message": "Producto creado exitosamente",
+  "product": { ... }
+}
+```
+
+---
+
+### PUT /api/products/:id
+Actualizar un producto.
+
+**Response:** `200 OK`
+
+---
+
+### DELETE /api/products/:id
+Eliminar un producto.
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Producto 'Cerveza Premium' eliminado exitosamente",
+  "id": 1
+}
+```
+
+---
+
+## 🎉 Eventos
+
+### GET /api/events
+Obtener eventos con filtros y paginación.
+
+**Query Parameters:**
+- `placeId` - Filtrar por lugar
+- `communityId` - Filtrar por comunidad
+- `organizerId` - Filtrar por organizador
+- `status` - Estado del evento
+- `minAge` - Edad mínima
+- `timeBegin` - Fecha inicio (ISO)
+- `timeEnd` - Fecha fin (ISO)
+- `page` - Número de página (default: 1)
+- `limit` - Resultados por página (default: 10)
+
+**Response:** `200 OK`
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "name": "Fiesta Techno",
+      "description": "La mejor música electrónica",
+      "timeBegin": "2025-02-15T22:00:00Z",
+      "timeEnd": "2025-02-16T05:00:00Z",
+      "minAge": 18,
+      "status": "proximo",
+      "place": {
+        "id": 1,
+        "name": "Club Nocturno",
+        "city": "Lima"
+      },
+      "organizer": {
+        "id": 2,
+        "name": "DJ Producer"
+      },
+      "community": {
+        "id": 1,
+        "name": "Techno Lovers"
+      },
+      "_count": {
+        "tickets": 150,
+        "reviews": 25,
+        "invitations": 10
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 35,
+    "totalPages": 4
+  }
+}
+```
+
+---
+
+### GET /api/events/:id
+Obtener un evento específico con todos sus detalles.
+
+**Response:** `200 OK`
+
+---
+
+### POST /api/events
+Crear un nuevo evento.
+
+**Body:**
+```json
+{
+  "name": "Fiesta Rock",
+  "description": "Noche de rock en vivo",
+  "timeBegin": "2025-03-10T21:00:00Z",
+  "timeEnd": "2025-03-11T03:00:00Z",
+  "placeId": 1,
+  "organizerId": 2,
+  "communityId": 1,
+  "minAge": 18,
+  "externalUrl": "https://eventbrite.com/..."
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "message": "Evento creado exitosamente",
+  "event": { ... }
+}
+```
+
+---
+
+### PUT /api/events/:id
+Actualizar un evento.
+
+**Body:**
+```json
+{
+  "name": "Fiesta Rock 2.0",
+  "status": "finalizado"
+}
+```
+
+**Response:** `200 OK`
+
+---
+
+### DELETE /api/events/:id
+Eliminar un evento.
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Evento 'Fiesta Rock' eliminado exitosamente",
+  "id": 1
+}
+```
 
 ---
 
 ## 🏘️ Comunidades
 
 ### GET /api/communities
-Obtener todas las comunidades con conteo de miembros y eventos.
+Obtener todas las comunidades.
 
-**Response:**
+**Response:** `200 OK`
 ```json
 [
   {
     "id": 1,
-    "name": "Comunidad Tech Lima",
+    "name": "Techno Lovers Lima",
     "_count": {
-      "members": 45,
+      "members": 150,
       "events": 12,
-      "requests": 3
+      "requests": 5
     }
   }
 ]
@@ -32,121 +512,68 @@ Obtener todas las comunidades con conteo de miembros y eventos.
 ---
 
 ### GET /api/communities/:id
-Obtener una comunidad específica con miembros y eventos.
+Obtener una comunidad específica.
 
-**Response:**
-```json
-{
-  "id": 1,
-  "name": "Comunidad Tech Lima",
-  "members": [
-    {
-      "userId": 1,
-      "role": "ADMIN",
-      "createdAt": "2025-01-15T10:00:00Z",
-      "user": {
-        "id": 1,
-        "name": "Juan",
-        "lastName": "Pérez",
-        "email": "juan@example.com",
-        "image": "https://..."
-      }
-    }
-  ],
-  "events": [
-    {
-      "id": 1,
-      "name": "Meetup JavaScript",
-      "description": "...",
-      "timeBegin": "2025-02-01T19:00:00Z",
-      "place": {
-        "name": "WeWork",
-        "city": "Lima",
-        "country": "Perú"
-      }
-    }
-  ],
-  "_count": {
-    "requests": 3
-  }
-}
-```
+**Response:** `200 OK`
 
 ---
 
 ### POST /api/communities
-Crear nueva comunidad.
+Crear una nueva comunidad.
 
-**Request Body:**
+**Body:**
 ```json
 {
-  "name": "Comunidad Tech Lima"
+  "name": "Rock Fans Perú"
 }
 ```
 
 **Response:** `201 Created`
 ```json
 {
-  "id": 1,
-  "name": "Comunidad Tech Lima"
+  "message": "Comunidad creada exitosamente",
+  "community": {
+    "id": 2,
+    "name": "Rock Fans Perú"
+  }
 }
 ```
 
 ---
 
 ### PUT /api/communities/:id
-Actualizar comunidad.
-
-**Request Body:**
-```json
-{
-  "name": "Comunidad Tech Lima - Actualizado"
-}
-```
+Actualizar una comunidad.
 
 **Response:** `200 OK`
 
 ---
 
 ### DELETE /api/communities/:id
-Eliminar comunidad.
+Eliminar una comunidad.
 
-**Response:** `204 No Content`
-
----
-
-## 👥 Miembros de Comunidad
-
-### GET /api/communities/:id/members
-Obtener miembros de una comunidad.
-
-**Response:**
+**Response:** `200 OK`
 ```json
-[
-  {
-    "userId": 1,
-    "communityId": 1,
-    "role": "ADMIN",
-    "createdAt": "2025-01-15T10:00:00Z",
-    "exitAt": null,
-    "user": {
-      "id": 1,
-      "name": "Juan",
-      "lastName": "Pérez",
-      "email": "juan@example.com",
-      "image": "https://...",
-      "membership": "VIP"
-    }
-  }
-]
+{
+  "message": "Comunidad 'Rock Fans Perú' eliminada exitosamente",
+  "id": 2
+}
 ```
 
 ---
 
-### POST /api/communities/:id/members
-Agregar miembro a comunidad (solo admins).
+## 👨‍👩‍👧‍👦 Miembros de Comunidad
 
-**Request Body:**
+### GET /api/communities/:id/members
+Obtener todos los miembros de una comunidad.
+
+**Response:** `200 OK`
+
+---
+
+### POST /api/communities/:id/members
+Agregar un miembro a la comunidad (solo ADMIN).
+
+**Body:**
 ```json
 {
   "userId": 5,
@@ -154,342 +581,255 @@ Agregar miembro a comunidad (solo admins).
 }
 ```
 
-**Roles disponibles:** `CLIENT`, `MARKET`, `ADMIN`
-
 **Response:** `201 Created`
-```json
-{
-  "userId": 5,
-  "communityId": 1,
-  "role": "CLIENT",
-  "createdAt": "2025-01-20T14:30:00Z",
-  "user": {
-    "id": 5,
-    "name": "María",
-    "lastName": "García",
-    "email": "maria@example.com"
-  },
-  "community": {
-    "id": 1,
-    "name": "Comunidad Tech Lima"
-  }
-}
-```
-
-**Errores:**
-- `404`: Community not found / User not found
-- `409`: User is already a member of this community
 
 ---
 
 ### DELETE /api/communities/:id/members/:userId
-Remover miembro de comunidad.
+Remover un miembro de la comunidad.
 
-**Response:** `204 No Content`
+**Response:** `200 OK`
+```json
+{
+  "message": "Miembro eliminado exitosamente de la comunidad",
+  "userId": 5,
+  "communityId": 1
+}
+```
 
 ---
 
 ## 📝 Solicitudes (Requests)
 
 ### GET /api/requests
-Obtener todas las solicitudes (con filtros opcionales).
+Obtener solicitudes con filtros.
 
 **Query Parameters:**
-- `userId` - Filtrar por usuario que solicita
-- `status` - Filtrar por estado: `PENDING`, `ACCEPTED`, `REJECTED`
+- `userId` - Filtrar por usuario
+- `status` - PENDING | ACCEPTED | REJECTED
 
-**Ejemplo:** `GET /api/requests?userId=5&status=PENDING`
-
-**Response:**
-```json
-[
-  {
-    "id": 1,
-    "fromId": 5,
-    "communityId": 1,
-    "status": "PENDING",
-    "createdAt": "2025-01-20T10:00:00Z",
-    "acceptedById": null,
-    "from": {
-      "id": 5,
-      "name": "María",
-      "lastName": "García",
-      "email": "maria@example.com",
-      "image": "https://..."
-    },
-    "community": {
-      "id": 1,
-      "name": "Comunidad Tech Lima"
-    },
-    "acceptedBy": null
-  }
-]
-```
+**Response:** `200 OK`
 
 ---
 
 ### GET /api/requests/:id
-Obtener solicitud específica.
+Obtener una solicitud específica.
 
-**Response:** Similar al GET /api/requests
+**Response:** `200 OK`
+
+---
+
+### PATCH /api/requests/:id
+Aceptar o rechazar una solicitud.
+
+**Body:**
+```json
+{
+  "status": "ACCEPTED",
+  "acceptedById": 2
+}
+```
+
+**Response:** `200 OK`
+
+---
+
+### DELETE /api/requests/:id
+Eliminar/cancelar una solicitud.
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Solicitud eliminada exitosamente",
+  "id": 1,
+  "fromId": 5,
+  "communityId": 1
+}
+```
 
 ---
 
 ### GET /api/communities/:id/requests
 Obtener solicitudes de una comunidad específica.
 
-**Response:** Array de solicitudes (mismo formato que GET /api/requests)
+**Response:** `200 OK`
 
 ---
 
 ### POST /api/communities/:id/requests
-Crear solicitud de ingreso a comunidad.
+Crear una solicitud para unirse a una comunidad.
 
-**Request Body:**
+**Body:**
 ```json
 {
-  "fromId": 5
+  "userId": 5
 }
 ```
 
 **Response:** `201 Created`
-```json
-{
-  "id": 1,
-  "fromId": 5,
-  "communityId": 1,
-  "status": "PENDING",
-  "createdAt": "2025-01-20T10:00:00Z",
-  "from": {
-    "id": 5,
-    "name": "María",
-    "lastName": "García",
-    "email": "maria@example.com"
-  },
-  "community": {
-    "id": 1,
-    "name": "Comunidad Tech Lima"
-  }
-}
-```
-
-**Errores:**
-- `404`: Community not found / User not found
-- `409`: User is already a member / Request already exists
-
----
-
-### PATCH /api/requests/:id
-Aceptar o rechazar solicitud.
-
-**Request Body:**
-```json
-{
-  "status": "ACCEPTED",
-  "acceptedById": 1
-}
-```
-
-**Estados disponibles:** `ACCEPTED`, `REJECTED`
-
-**Comportamiento:**
-- Si `status = ACCEPTED`: Se crea automáticamente el miembro en la comunidad con role `CLIENT`
-- Si `status = REJECTED`: Solo se actualiza el estado
-
-**Response:** `200 OK`
-```json
-{
-  "id": 1,
-  "status": "ACCEPTED",
-  "acceptedById": 1,
-  "acceptedBy": {
-    "id": 1,
-    "name": "Juan",
-    "lastName": "Pérez"
-  }
-}
-```
-
-**Errores:**
-- `400`: Request already accepted/rejected
-- `404`: Request not found
-- `409`: User is already a member (solo en ACCEPTED)
-
----
-
-### DELETE /api/requests/:id
-Cancelar/eliminar solicitud.
-
-**Response:** `204 No Content`
 
 ---
 
 ## 💌 Invitaciones
 
 ### GET /api/invitations
-Obtener todas las invitaciones (con filtros opcionales).
+Obtener invitaciones con filtros.
 
 **Query Parameters:**
-- `fromId` - Filtrar por quien envía
-- `toId` - Filtrar por quien recibe
-- `status` - Filtrar por estado: `PENDING`, `ACCEPTED`, `REJECTED`
+- `fromId` - Filtrar por remitente
+- `toId` - Filtrar por destinatario
+- `status` - PENDING | ACCEPTED | REJECTED
 
-**Ejemplo:** `GET /api/invitations?toId=5&status=PENDING`
-
-**Response:**
-```json
-[
-  {
-    "id": 1,
-    "fromId": 1,
-    "toId": 5,
-    "placeId": 1,
-    "eventId": 2,
-    "status": "PENDING",
-    "invitationDate": "2025-02-01T19:00:00Z",
-    "createdAt": "2025-01-20T14:00:00Z",
-    "from": {
-      "id": 1,
-      "name": "Juan",
-      "lastName": "Pérez",
-      "email": "juan@example.com",
-      "image": "https://..."
-    },
-    "to": {
-      "id": 5,
-      "name": "María",
-      "lastName": "García",
-      "email": "maria@example.com",
-      "image": "https://..."
-    },
-    "place": {
-      "id": 1,
-      "name": "WeWork San Isidro",
-      "direction": "Av. Principal 123",
-      "city": "Lima",
-      "country": "Perú",
-      "type": "coworking"
-    },
-    "event": {
-      "id": 2,
-      "name": "Meetup JavaScript",
-      "description": "...",
-      "timeBegin": "2025-02-01T19:00:00Z",
-      "timeEnd": "2025-02-01T22:00:00Z",
-      "status": "proximo"
-    }
-  }
-]
-```
+**Response:** `200 OK`
 
 ---
 
 ### GET /api/invitations/:id
-Obtener invitación específica con todos los detalles.
+Obtener una invitación específica.
 
-**Response:** Similar al GET /api/invitations pero con más detalles (mapUrl, minAge, etc.)
+**Response:** `200 OK`
 
 ---
 
 ### POST /api/invitations
-Crear nueva invitación.
+Crear una nueva invitación.
 
-**Request Body:**
+**Body:**
 ```json
 {
   "fromId": 1,
   "toId": 5,
   "placeId": 1,
   "eventId": 2,
-  "invitationDate": "2025-02-01T19:00:00Z"
+  "invitationDate": "2025-02-15T22:00:00Z"
 }
 ```
 
-**Campos:**
-- `fromId` (required): Usuario que envía la invitación
-- `toId` (required): Usuario que recibe la invitación
-- `placeId` (required): Lugar de la invitación
-- `eventId` (optional): Evento específico (si aplica)
-- `invitationDate` (optional): Fecha/hora de la invitación
-
 **Response:** `201 Created`
-
-**Errores:**
-- `404`: Sender/Recipient user not found, Place not found, Event not found
 
 ---
 
 ### PATCH /api/invitations/:id/status
-Aceptar o rechazar invitación.
+Aceptar o rechazar una invitación.
 
-**Request Body:**
+**Body:**
 ```json
 {
   "status": "ACCEPTED"
 }
 ```
 
-**Estados disponibles:** `ACCEPTED`, `REJECTED`
-
 **Response:** `200 OK`
-
-**Errores:**
-- `400`: Invitation already accepted/rejected
-- `404`: Invitation not found
 
 ---
 
 ### DELETE /api/invitations/:id
-Cancelar/eliminar invitación.
+Eliminar/cancelar una invitación.
 
-**Response:** `204 No Content`
+**Response:** `200 OK`
+```json
+{
+  "message": "Invitación eliminada exitosamente",
+  "id": 1,
+  "fromId": 1,
+  "toId": 5
+}
+```
 
 ---
 
-## 🎫 Tickets (Compras)
+## 🎫 Tickets
 
 ### GET /api/tickets/bought
-Obtener tickets comprados (con filtros opcionales).
+Obtener todos los tickets comprados.
 
 **Query Parameters:**
 - `userId` - Filtrar por usuario
 - `eventId` - Filtrar por evento
 
-**Ejemplo:** `GET /api/tickets/bought?userId=5`
+**Response:** `200 OK`
 
-**Response:**
+---
+
+### GET /api/tickets/bought/:id
+Obtener un ticket comprado específico.
+
+**Response:** `200 OK`
+
+---
+
+### POST /api/tickets/:id/buy
+Comprar un ticket (mock de pago).
+
+**Body:**
+```json
+{
+  "userId": 1,
+  "quantity": 2
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "message": "Ticket comprado exitosamente",
+  "boughtTicket": {
+    "id": 15,
+    "userId": 1,
+    "ticketId": 3,
+    "price": "50.00",
+    "createdAt": "2025-01-20T10:30:00Z"
+  },
+  "ticketDetails": {
+    "type": "VIP",
+    "description": "Acceso total al evento"
+  }
+}
+```
+
+---
+
+### DELETE /api/tickets/bought/:id
+Cancelar/reembolsar un ticket comprado.
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Ticket reembolsado/eliminado exitosamente",
+  "id": 15,
+  "userId": 1,
+  "ticketId": 3
+}
+```
+
+---
+
+## 🎁 Promociones
+
+### GET /api/promotions
+Obtener promociones con filtros.
+
+**Query Parameters:**
+- `type` - PRODUCT | TICKET
+- `membership` - NORMAL | VIP
+- `active` - true/false (promociones vigentes)
+
+**Response:** `200 OK`
 ```json
 [
   {
     "id": 1,
-    "userId": 5,
-    "ticketId": 10,
-    "price": "25.00",
-    "createdAt": "2025-01-20T15:30:00Z",
-    "user": {
-      "id": 5,
-      "name": "María",
-      "lastName": "García",
-      "email": "maria@example.com"
-    },
-    "ticket": {
-      "id": 10,
-      "type": "VIP",
-      "price": "25.00",
-      "quantity": 45,
-      "description": "Acceso VIP al evento",
-      "event": {
-        "id": 2,
-        "name": "Meetup JavaScript",
-        "description": "...",
-        "timeBegin": "2025-02-01T19:00:00Z",
-        "status": "proximo",
-        "place": {
-          "name": "WeWork San Isidro",
-          "city": "Lima",
-          "country": "Perú",
-          "direction": "Av. Principal 123"
-        }
+    "type": "PRODUCT",
+    "discount": 20,
+    "membership": "VIP",
+    "timeBegin": "2025-01-01T00:00:00Z",
+    "timeEnd": "2025-12-31T23:59:59Z",
+    "product": {
+      "id": 1,
+      "name": "Cerveza Premium",
+      "place": {
+        "id": 1,
+        "name": "Bar Central"
       }
     }
   }
@@ -498,161 +838,321 @@ Obtener tickets comprados (con filtros opcionales).
 
 ---
 
-### GET /api/tickets/bought/:id
-Obtener ticket comprado específico con todos los detalles.
+### GET /api/promotions/:id
+Obtener una promoción específica.
 
-**Response:** Similar a GET /api/tickets/bought pero con más información (membership, minAge, mapUrl, etc.)
+**Response:** `200 OK`
 
 ---
 
-### POST /api/tickets/buy
-Comprar ticket(s).
+### POST /api/promotions
+Crear una nueva promoción.
 
-**Request Body:**
+**Body:**
 ```json
 {
-  "userId": 5,
-  "ticketId": 10,
-  "quantity": 2
+  "type": "TICKET",
+  "ticketId": 5,
+  "discount": 15,
+  "membership": "NORMAL",
+  "timeBegin": "2025-02-01T00:00:00Z",
+  "timeEnd": "2025-02-28T23:59:59Z"
 }
 ```
-
-**Campos:**
-- `userId` (required): ID del usuario que compra
-- `ticketId` (required): ID del ticket a comprar
-- `quantity` (optional, default: 1): Cantidad de tickets
-
-**Validaciones:**
-- Evento no debe estar finalizado/cancelado
-- Debe haber suficientes tickets disponibles
-- Se reduce la cantidad disponible automáticamente
 
 **Response:** `201 Created`
 ```json
 {
-  "message": "Successfully purchased 2 ticket(s)",
-  "tickets": [
-    {
-      "id": 1,
-      "userId": 5,
-      "ticketId": 10,
-      "price": "25.00",
-      "createdAt": "2025-01-20T15:30:00Z",
-      "user": { ... },
-      "ticket": { ... }
-    },
-    {
-      "id": 2,
-      "userId": 5,
-      "ticketId": 10,
-      "price": "25.00",
-      "createdAt": "2025-01-20T15:30:00Z",
-      "user": { ... },
-      "ticket": { ... }
-    }
-  ],
-  "total": 50.00
+  "message": "Promoción creada exitosamente",
+  "promotion": { ... }
 }
 ```
 
-**Errores:**
-- `404`: User not found / Ticket not found
-- `400`: Cannot buy tickets for finalizado/cancelado event
-- `400`: Not enough tickets available. Only X left.
+---
+
+### PUT /api/promotions/:id
+Actualizar una promoción.
+
+**Response:** `200 OK`
 
 ---
 
-### DELETE /api/tickets/bought/:id
-Cancelar/reembolsar ticket comprado.
+### DELETE /api/promotions/:id
+Eliminar una promoción.
 
-**Validaciones:**
-- Solo se puede cancelar si el evento no ha empezado
-- Se restaura automáticamente la cantidad disponible
+**Response:** `200 OK`
+```json
+{
+  "message": "Promoción eliminada exitosamente",
+  "id": 1,
+  "type": "PRODUCT",
+  "discount": 20
+}
+```
 
-**Response:** `204 No Content`
+---
 
-**Errores:**
-- `404`: Bought ticket not found
-- `400`: Cannot refund ticket for past or ongoing event
+## 📢 Anuncios (Ads)
+
+### GET /api/ads
+Obtener anuncios con filtros.
+
+**Query Parameters:**
+- `placeId` - Filtrar por lugar
+- `eventId` - Filtrar por evento
+- `active` - true/false (anuncios vigentes)
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": 1,
+    "timeBegin": "2025-02-01T00:00:00Z",
+    "timeEnd": "2025-02-28T23:59:59Z",
+    "place": {
+      "id": 1,
+      "name": "Bar Central",
+      "city": "Lima",
+      "image": "https://..."
+    },
+    "event": {
+      "id": 2,
+      "name": "Fiesta Techno",
+      "timeBegin": "2025-02-15T22:00:00Z"
+    }
+  }
+]
+```
+
+---
+
+### GET /api/ads/:id
+Obtener un anuncio específico.
+
+**Response:** `200 OK`
+
+---
+
+### POST /api/ads
+Crear un nuevo anuncio.
+
+**Body:**
+```json
+{
+  "placeId": 1,
+  "eventId": 2,
+  "timeBegin": "2025-03-01T00:00:00Z",
+  "timeEnd": "2025-03-31T23:59:59Z"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "message": "Anuncio creado exitosamente",
+  "ad": { ... }
+}
+```
+
+---
+
+### PUT /api/ads/:id
+Actualizar un anuncio.
+
+**Response:** `200 OK`
+
+---
+
+### DELETE /api/ads/:id
+Eliminar un anuncio.
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Anuncio eliminado exitosamente",
+  "id": 1,
+  "placeId": 1
+}
+```
+
+---
+
+## ⭐ Reviews
+
+### GET /api/reviews
+Obtener reviews con filtros.
+
+**Query Parameters:**
+- `userId` - Filtrar por usuario
+- `placeId` - Filtrar por lugar
+- `eventId` - Filtrar por evento
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": 1,
+    "calification": 5,
+    "comment": "Excelente lugar, muy recomendado",
+    "createdAt": "2025-01-15T10:00:00Z",
+    "user": {
+      "id": 1,
+      "name": "Juan",
+      "lastName": "Pérez",
+      "image": "https://..."
+    },
+    "place": {
+      "id": 1,
+      "name": "Bar Central"
+    }
+  }
+]
+```
+
+---
+
+### GET /api/reviews/place/:placeId/stats
+Obtener estadísticas de calificación de un lugar.
+
+**Response:** `200 OK`
+```json
+{
+  "placeId": 1,
+  "totalReviews": 42,
+  "averageRating": 4.5,
+  "distribution": {
+    "5": 25,
+    "4": 10,
+    "3": 5,
+    "2": 1,
+    "1": 1
+  }
+}
+```
+
+---
+
+### GET /api/reviews/event/:eventId/stats
+Obtener estadísticas de calificación de un evento.
+
+**Response:** `200 OK`
+
+---
+
+### GET /api/reviews/:id
+Obtener un review específico.
+
+**Response:** `200 OK`
+
+---
+
+### POST /api/reviews
+Crear un nuevo review.
+
+**Body:**
+```json
+{
+  "userId": 1,
+  "placeId": 1,
+  "eventId": 2,
+  "calification": 5,
+  "comment": "Increíble experiencia!"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "message": "Review creado exitosamente",
+  "review": { ... }
+}
+```
+
+---
+
+### PUT /api/reviews/:id
+Actualizar un review.
+
+**Body:**
+```json
+{
+  "calification": 4,
+  "comment": "Muy bueno, pero puede mejorar"
+}
+```
+
+**Response:** `200 OK`
+
+---
+
+### DELETE /api/reviews/:id
+Eliminar un review.
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Review eliminado exitosamente",
+  "id": 1,
+  "userId": 1,
+  "placeId": 1
+}
+```
+
+---
+
+## 🔒 Autenticación en Endpoints
+
+Algunos endpoints requieren autenticación. Incluye el token JWT en el header:
+
+```
+Authorization: Bearer <tu-token-jwt>
+```
+
+### Endpoints que requieren autenticación:
+- POST /api/auth/signup-with-privilege (requiere rol ADMIN)
+- Todos los endpoints de creación, actualización y eliminación
+- GET endpoints públicos generalmente NO requieren autenticación
 
 ---
 
 ## 📊 Códigos de Estado HTTP
 
-| Código | Significado |
-|--------|-------------|
-| 200 | OK - Operación exitosa |
-| 201 | Created - Recurso creado exitosamente |
-| 204 | No Content - Operación exitosa sin respuesta |
-| 400 | Bad Request - Validación fallida o datos inválidos |
-| 404 | Not Found - Recurso no encontrado |
-| 409 | Conflict - Conflicto (ej: ya existe) |
-| 500 | Internal Server Error - Error del servidor |
+- `200 OK` - Solicitud exitosa
+- `201 Created` - Recurso creado exitosamente
+- `400 Bad Request` - Datos de entrada inválidos
+- `401 Unauthorized` - No autenticado o token inválido
+- `403 Forbidden` - No tiene permisos para esta acción
+- `404 Not Found` - Recurso no encontrado
+- `409 Conflict` - Conflicto (ej: email ya existe)
+- `500 Internal Server Error` - Error del servidor
 
 ---
 
-## 🔐 Notas de Seguridad
+## 🚀 Variables de Entorno Requeridas
 
-⚠️ **TODO para producción:**
-
-1. **Autenticación**: Implementar JWT/OAuth para proteger endpoints
-2. **Autorización**: Verificar roles antes de permitir operaciones (ej: solo admins pueden agregar miembros)
-3. **Rate Limiting**: Limitar peticiones por IP/usuario
-4. **Validación de ownership**: Verificar que el usuario tenga permiso para modificar recursos
-
-**Ejemplo de middleware de auth (pendiente):**
-```typescript
-// Solo admins pueden agregar miembros
-router.post('/:id/members', authMiddleware, adminOnly, async (req, res) => {
-  // ...
-});
+```bash
+DATABASE_URL="postgresql://..."
+PORT=3000
+NODE_ENV=development
+JWT_SECRET="tu-secret-key"
+JWT_EXPIRES_IN="7d"
 ```
 
 ---
 
-## 🧪 Testing con cURL
+## 📝 Notas Adicionales
 
-### Crear comunidad
-```bash
-curl -X POST http://localhost:3000/api/communities \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Comunidad Tech Lima"}'
-```
+1. **Paginación**: Los endpoints que retornan listas suelen soportar `page` y `limit`
+2. **Fechas**: Todas las fechas deben estar en formato ISO 8601
+3. **IDs**: Todos los IDs son enteros
+4. **Enum Values**:
+   - ROLE: CLIENT, MARKET, ADMIN
+   - Status: PENDING, ACCEPTED, REJECTED
+   - Gender: MAN, WOMAN
+   - Membership: NORMAL, VIP
+   - PromotionType: PRODUCT, TICKET
 
-### Solicitar ingreso
-```bash
-curl -X POST http://localhost:3000/api/communities/1/requests \
-  -H "Content-Type: application/json" \
-  -d '{"fromId": 5}'
-```
+---
 
-### Aceptar solicitud
-```bash
-curl -X PATCH http://localhost:3000/api/requests/1 \
-  -H "Content-Type: application/json" \
-  -d '{"status": "ACCEPTED", "acceptedById": 1}'
-```
-
-### Crear invitación
-```bash
-curl -X POST http://localhost:3000/api/invitations \
-  -H "Content-Type: application/json" \
-  -d '{
-    "fromId": 1,
-    "toId": 5,
-    "placeId": 1,
-    "eventId": 2,
-    "invitationDate": "2025-02-01T19:00:00Z"
-  }'
-```
-
-### Comprar tickets
-```bash
-curl -X POST http://localhost:3000/api/tickets/buy \
-  -H "Content-Type: application/json" \
-  -d '{
-    "userId": 5,
-    "ticketId": 10,
-    "quantity": 2
-  }'
-```
+**Versión:** 1.0  
+**Última actualización:** 17/10/2025 09:10pm

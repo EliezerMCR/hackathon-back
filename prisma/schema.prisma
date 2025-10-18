@@ -76,7 +76,7 @@ model Place {
   country       String       @db.VarChar(100)
   capacity      Int?
   type          String?      @db.VarChar(50)
-  proprietorId  Int?         @map("id_propietary")
+  ownerId       Int?         @map("id_propietary")
   createdAt     DateTime     @default(now()) @map("created_at")
   image         String?
   mapUrl        String?      @map("map_url")
@@ -84,7 +84,7 @@ model Place {
   facebookUrl   String?      @map("facebook_url")
   tiktokUrl     String?      @map("tiktok_url")
   status        Status       @default(PENDING)
-  proprietor    User?        @relation("PlaceOwner", fields: [proprietorId], references: [id], onDelete: SetNull)
+  owner         User?        @relation("PlaceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   products      Product[]
   events        Event[]
   reviews       Review[]
