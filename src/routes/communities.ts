@@ -491,4 +491,29 @@ router.post('/:id/requests', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/:communityId/is-member/:userId', async (req: Request, res: Response) => {
+  try {
+    const communityId = parseInt(req.params.communityId, 10);
+    const userId = parseInt(req.params.userId, 10);
+
+    if (isNaN(communityId) || isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid communityId or userId' });
+    }
+
+    const member = await prisma.community_Member.findUnique({
+      where: {
+        userId_communityId: {
+          userId,
+          communityId,
+        },
+      },
+    });
+
+    res.json({ isMember: !!member });
+  } catch (error) {
+    console.error('Error checking membership:', error);
+    res.status(500).json({ error: 'Failed to check membership' });
+  }
+});
+
 export default router;
