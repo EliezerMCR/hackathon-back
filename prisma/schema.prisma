@@ -90,6 +90,7 @@ model Place {
   ownerId     Int?         @map("id_propietary")
   createdAt   DateTime     @default(now()) @map("created_at")
   image       String?
+  description String?      @db.Text
   mapUrl      String?      @map("map_url")
   igUrl       String?      @map("ig_url")
   facebookUrl String?      @map("facebook_url")
@@ -297,10 +298,11 @@ model Promotion {
 }
 
 model Category {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique @db.VarChar(100)
-  createdAt DateTime @default(now()) @map("created_at")
-  createdBy Int      @map("created_by")
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdBy   Int      @map("created_by")
 
   @@map("Category")
 }

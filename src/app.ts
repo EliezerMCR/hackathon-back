@@ -3,10 +3,14 @@
  * Este es el ÚNICO archivo que configura la aplicación Express
  * Tanto desarrollo local (src/index.ts) como Vercel (api/index.ts) importan de aquí
  */
+import dotenv from 'dotenv';
+
+// Load environment variables FIRST, before any other imports
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import dotenv from 'dotenv';
 
 // Import routes
 import userRoutes from './routes/users';
@@ -23,11 +27,9 @@ import adRoutes from './routes/ads';
 import reviewRoutes from './routes/reviews';
 import categoryRoutes from './routes/categories';
 import notificationRoutes from './routes/notifications';
+import aiAssistantRoutes from './routes/ai-assistant';
 import { authenticate, authorize } from './middlewares/auth';
 import { errorHandler } from './middlewares/errorHandler';
-
-// Load environment variables
-dotenv.config();
 
 // Create Express app
 const app = express();
@@ -70,6 +72,7 @@ app.use('/api/ads', adRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/ai', aiAssistantRoutes);
 
 // Protected route example
 app.get('/api/protected', authenticate, authorize(['ADMIN']), (req, res) => {
