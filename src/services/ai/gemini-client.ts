@@ -32,9 +32,11 @@ export class GeminiClient {
     this.model = this.genAI.getGenerativeModel({
       model: modelName,
       generationConfig: {
-        temperature: 0.7,
-        topP: 0.95,
-        topK: 40,
+        // Lower temperature = less creative, more factual and deterministic
+        // We want the AI to be very strict and not invent information
+        temperature: 0.1,
+        topP: 0.8,
+        topK: 20,
         maxOutputTokens: 8192,
       },
     });
