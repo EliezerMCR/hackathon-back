@@ -23,7 +23,7 @@ const updateAdSchema = z.object({
 // ==================== ADS CRUD ====================
 
 // GET /api/ads - Get all ads (with filters)
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const { placeId, eventId, active } = req.query;
 
@@ -87,7 +87,7 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/ads/:id - Get ad by ID
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const adId = parseInt(id, 10);

@@ -18,7 +18,7 @@ const updateCategorySchema = z.object({
 // ==================== CATEGORIES CRUD ====================
 
 // GET /api/categories - Get all categories
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const categories = await prisma.category.findMany({
       orderBy: {
@@ -34,7 +34,7 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/categories/:id - Get category by ID
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const categoryId = parseInt(id, 10);

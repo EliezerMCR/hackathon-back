@@ -41,7 +41,7 @@ const updatePlaceSchema = z.object({
 // ==================== PLACES CRUD ====================
 
 // GET /api/places - Get all places with filters and pagination
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const { city, country, type, status, page = '1', limit = '10' } = req.query;
     
@@ -109,7 +109,7 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/places/:id - Get place by ID
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const placeId = parseInt(id, 10);

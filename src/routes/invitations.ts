@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { authenticate, AuthRequest } from '../middlewares/auth';
 
 const router = Router();
 
@@ -21,7 +22,7 @@ const updateInvitationStatusSchema = z.object({
 // ==================== INVITATIONS ====================
 
 // GET /api/invitations - Get all invitations (with filters)
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { fromId, toId, status } = req.query;
     
@@ -100,7 +101,7 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/invitations/:id - Get invitation by ID
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const invitationId = parseInt(id, 10);
@@ -167,7 +168,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/invitations - Create new invitation
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const validation = createInvitationSchema.safeParse(req.body);
     
@@ -271,7 +272,7 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // PATCH /api/invitations/:id/status - Update invitation status
-router.patch('/:id/status', async (req: Request, res: Response) => {
+router.patch('/:id/status', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const invitationId = parseInt(id, 10);
@@ -361,7 +362,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/invitations/:id - Delete/Cancel invitation
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const invitationId = parseInt(id, 10);

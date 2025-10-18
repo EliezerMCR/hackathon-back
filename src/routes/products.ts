@@ -24,7 +24,7 @@ const updateProductSchema = z.object({
 // ==================== PRODUCTS CRUD ====================
 
 // GET /api/products - Get all products (with filters)
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const { placeId, minPrice, maxPrice } = req.query;
 
@@ -82,7 +82,7 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/products/:id - Get product by ID
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const productId = parseInt(id, 10);

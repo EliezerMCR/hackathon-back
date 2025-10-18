@@ -36,7 +36,7 @@ const updateEventSchema = z.object({
 // ==================== EVENTS CRUD ====================
 
 // GET /api/events - Get all events with filters
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const {
       placeId,
@@ -176,7 +176,7 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/events/:id - Get event by ID
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const eventId = parseInt(id, 10);

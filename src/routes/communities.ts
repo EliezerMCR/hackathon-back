@@ -75,7 +75,7 @@ const communityEventFilterSchema = z.object({
 // ==================== COMMUNITIES CRUD ====================
 
 // GET /api/communities - Get all communities
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const communities = await prisma.community.findMany({
       include: {
@@ -97,7 +97,7 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/communities/:id - Get community by ID
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const communityId = parseInt(id, 10);
@@ -217,7 +217,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
 });
 
 // GET /api/communities/:id/events - List events for a community
-router.get('/:id/events', async (req: Request, res: Response) => {
+router.get('/:id/events', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const communityId = parseInt(id, 10);
@@ -362,7 +362,7 @@ const addMemberSchema = z.object({
 });
 
 // GET /api/communities/:id/members - Get community members
-router.get('/:id/members', async (req: Request, res: Response) => {
+router.get('/:id/members', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const communityId = parseInt(id, 10);
@@ -996,7 +996,7 @@ router.post('/:id/requests/:requestId/reject', authenticate, async (req: AuthReq
   }
 });
 
-router.get('/:communityId/is-member/:userId', async (req: Request, res: Response) => {
+router.get('/:communityId/is-member/:userId', authenticate, async (req: Request, res: Response) => {
   try {
     const communityId = parseInt(req.params.communityId, 10);
     const userId = parseInt(req.params.userId, 10);
