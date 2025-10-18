@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { prisma } from '../index';
+import { prisma } from '../lib/prisma';
 import { authenticate, authorize } from '../middlewares/auth';
 import { validate } from '../middlewares/validation';
 import { loginSchema, signupSchema, signupWithPrivilegeSchema } from '../schemas/userSchemas';

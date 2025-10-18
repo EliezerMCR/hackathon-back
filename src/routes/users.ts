@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { prisma } from '../index';
+import { prisma } from '../lib/prisma';
 import { authenticate, authorize } from '../middlewares/auth';
 import { validate } from '../middlewares/validation';
 import { createUserSchema, updateUserSchema } from '../schemas/userSchemas';
