@@ -1596,6 +1596,11 @@ export const updateEventTool: AITool = {
         description:
           'Nueva fecha en lenguaje natural (por ejemplo "este viernes 9pm"). Si se omite, no se toca la fecha.',
       },
+      removeEndTime: {
+        type: 'boolean',
+        description:
+          'Ponlo en true cuando el usuario pida eliminar la hora/fecha de finalización del evento.',
+      },
     },
   },
   handler: async (
@@ -1606,10 +1611,11 @@ export const updateEventTool: AITool = {
       newName?: string;
       description?: string;
       date?: string;
+      removeEndTime?: boolean;
     },
     userId: number
   ): Promise<EventUpdateResult> => {
-    const { eventId, eventLabel, referenceDate, newName, description, date } = params;
+    const { eventId, eventLabel, referenceDate, newName, description, date, removeEndTime } = params;
 
     if ((!eventId || Number.isNaN(eventId)) && !eventLabel) {
       return {
@@ -1756,13 +1762,17 @@ export const updateEventTool: AITool = {
       const parsedDateUtc = parsedDate.setZone('UTC');
       data.timeBegin = parsedDateUtc.toJSDate();
 
-      if (existing.timeEnd) {
+      if (existing.timeEnd && !removeEndTime) {
         const durationMs = existing.timeEnd.getTime() - existing.timeBegin.getTime();
         if (durationMs > 0) {
           const newEnd = parsedDateUtc.plus({ milliseconds: durationMs });
           data.timeEnd = newEnd.toJSDate();
         }
       }
+    }
+
+    if (removeEndTime) {
+      data.timeEnd = null;
     }
 
     try {
