@@ -1,6 +1,12 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { authenticate, AuthRequest } from '../middlewares/auth';
+import {
+  ensureCanManageProduct,
+  ensureCanManagePromotion,
+  ensureCanManageTicket,
+} from '../utils/authorization';
 
 const router = Router();
 
@@ -123,7 +129,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/promotions - Create new promotion
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const validation = createPromotionSchema.safeParse(req.body);
 
@@ -136,28 +142,16 @@ router.post('/', async (req: Request, res: Response) => {
 
     const { type, productId, ticketId, timeBegin, timeEnd, ...rest } = validation.data;
 
-    // Validate that productId or ticketId is provided based on type
-    if (type === 'PRODUCT' && !productId) {
-      return res.status(400).json({ error: 'productId is required for PRODUCT promotions' });
-    }
-
-    if (type === 'TICKET' && !ticketId) {
-      return res.status(400).json({ error: 'ticketId is required for TICKET promotions' });
-    }
-
-    // Verify product or ticket exists
-    if (type === 'PRODUCT' && productId) {
-      const product = await prisma.product.findUnique({ where: { id: productId } });
-      if (!product) {
-        return res.status(404).json({ error: 'Product not found' });
+    if (type === 'PRODUCT') {
+      if (!productId) {
+        return res.status(400).json({ error: 'productId is required for PRODUCT promotions' });
       }
-    }
-
-    if (type === 'TICKET' && ticketId) {
-      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
-      if (!ticket) {
-        return res.status(404).json({ error: 'Ticket not found' });
+      await ensureCanManageProduct(req.user, productId);
+    } else {
+      if (!ticketId) {
+        return res.status(400).json({ error: 'ticketId is required for TICKET promotions' });
       }
+      await ensureCanManageTicket(req.user, ticketId);
     }
 
     const promotion = await prisma.promotion.create({
@@ -199,12 +193,12 @@ router.post('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error creating promotion:', error);
-    res.status(500).json({ error: 'Failed to create promotion' });
+    next(error);
   }
 });
 
 // PUT /api/promotions/:id - Update promotion
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const promotionId = parseInt(id, 10);
@@ -212,6 +206,8 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (isNaN(promotionId)) {
       return res.status(400).json({ error: 'Invalid promotion ID' });
     }
+
+    await ensureCanManagePromotion(req.user, promotionId);
 
     const validation = updatePromotionSchema.safeParse(req.body);
 
@@ -259,12 +255,12 @@ router.put('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Promotion not found' });
     }
 
-    res.status(500).json({ error: 'Failed to update promotion' });
+    next(error);
   }
 });
 
 // DELETE /api/promotions/:id - Delete promotion
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const promotionId = parseInt(id, 10);
@@ -272,6 +268,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
     if (isNaN(promotionId)) {
       return res.status(400).json({ error: 'Invalid promotion ID' });
     }
+
+    await ensureCanManagePromotion(req.user, promotionId);
 
     const deleted = await prisma.promotion.delete({
       where: { id: promotionId },
@@ -290,7 +288,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Promotion not found' });
     }
 
-    res.status(500).json({ error: 'Failed to delete promotion' });
+    next(error);
   }
 });
 

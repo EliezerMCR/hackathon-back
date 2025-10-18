@@ -10,6 +10,13 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting database seed...\n');
 
+  // Drop cached prepared statements so schema changes don't conflict with old plans
+  try {
+    await prisma.$executeRawUnsafe('DEALLOCATE ALL');
+  } catch (error) {
+    console.warn('⚠️  Unable to deallocate prepared statements:', error);
+  }
+
   // Clear existing data (optional - comment out if you want to keep existing data)
   console.log('🗑️  Cleaning existing data...');
   await prisma.bought_Ticket.deleteMany();
@@ -493,18 +500,27 @@ async function main() {
     prisma.community.create({
       data: {
         name: 'Tech Caracas Community',
+        createdBy: {
+          connect: { id: users[0].id },
+        },
       },
     }),
 
     prisma.community.create({
       data: {
         name: 'Startup Venezuela',
+        createdBy: {
+          connect: { id: users[1].id },
+        },
       },
     }),
 
     prisma.community.create({
       data: {
         name: 'Developers Circle VE',
+        createdBy: {
+          connect: { id: users[2].id },
+        },
       },
     }),
   ]);
