@@ -69,6 +69,8 @@ export interface CreateEventParams {
   description?: string;
   date: string;
   minAge?: number;
+  communityId?: number;
+  visibility?: 'PUBLIC' | 'PRIVATE';
 }
 
 export interface EventCreationResult {
@@ -118,6 +120,16 @@ export interface UpcomingEvent {
     city: string | null;
     summary: string;
   };
+  ticketInfo?: {
+    requiresPurchase: boolean;
+    lowestPrice?: string;
+  };
+  recentReviews?: Array<{
+    reviewerName: string | null;
+    rating: number;
+    comment: string | null;
+    createdAt: string;
+  }>;
 }
 
 export interface EventUpdateResult {
@@ -137,6 +149,65 @@ export interface EventUpdateResult {
       city: string | null;
     };
   };
+  reason?: string;
+  details?: any;
+}
+
+export interface JoinEventResult {
+  success: boolean;
+  message: string;
+  reason?: string;
+  alreadyJoined?: boolean;
+  attendance?: {
+    eventId: number;
+    userId: number;
+    joinedAt: string;
+    eventName?: string;
+    localTimeDescription?: string | null;
+  };
+  details?: any;
+}
+
+export interface CommunityEventSummary {
+  id: number;
+  name: string;
+  description?: string | null;
+  timeBegin: string;
+  timeEnd?: string | null;
+  localTimeDescription: string;
+  localEndDescription?: string | null;
+  status: string;
+  visibility: 'PUBLIC' | 'PRIVATE';
+  place?: {
+    id: number;
+    name: string;
+    city?: string | null;
+    country?: string | null;
+    image?: string | null;
+  } | null;
+  organizer?: {
+    id: number;
+    name: string | null;
+    lastName: string | null;
+    image?: string | null;
+  } | null;
+  attendeeCount: number;
+  ticketInfo?: {
+    requiresPurchase: boolean;
+    lowestPrice?: string;
+  };
+  recentReviews?: Array<{
+    reviewerName: string | null;
+    rating: number;
+    comment: string | null;
+    createdAt: string;
+  }>;
+}
+
+export interface CommunityEventsResult {
+  success: boolean;
+  events: CommunityEventSummary[];
+  message?: string;
   reason?: string;
   details?: any;
 }

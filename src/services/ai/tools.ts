@@ -3,6 +3,7 @@
  * These are the functions that Gemini can invoke during conversations.
  * Date parsing relies on Luxon for richer natural language support.
  */
+import { EventVisibility } from '@prisma/client';
 import { DateTime } from 'luxon';
 import { prisma } from '../../lib/prisma';
 import {
@@ -10,6 +11,9 @@ import {
   AvailablePlace,
   CreateEventParams,
   EventCreationResult,
+  CommunityEventSummary,
+  CommunityEventsResult,
+  JoinEventResult,
   PlaceReview,
   UpcomingEvent,
   EventUpdateResult,
@@ -430,6 +434,14 @@ const sanitizeComment = (text: string | null, maxLength = 220): string | null =>
   return `${cleaned.slice(0, maxLength - 1).trimEnd()}…`;
 };
 
+const decimalToNumber = (value: any): number => {
+  if (value && typeof value === 'object' && typeof value.toNumber === 'function') {
+    return value.toNumber();
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+};
+
 const toneFromRating = (rating: number): 'positive' | 'neutral' | 'negative' => {
   if (rating >= 4) return 'positive';
   if (rating <= 2) return 'negative';
@@ -596,7 +608,15 @@ export const createEventTool: AITool = {
     required: ['placeId', 'eventName', 'date'],
   },
   handler: async (params: CreateEventParams, userId: number): Promise<EventCreationResult> => {
-    const { placeId, eventName, description, minAge = 18, date } = params;
+    const {
+      placeId,
+      eventName,
+      description,
+      minAge = 18,
+      date,
+      communityId,
+      visibility,
+    } = params;
 
     try {
       const place = await prisma.place.findUnique({
@@ -658,28 +678,97 @@ export const createEventTool: AITool = {
         };
       }
 
+      let targetCommunityId: number | null = null;
+
+      if (typeof communityId === 'number' && !Number.isNaN(communityId)) {
+        const community = await prisma.community.findUnique({
+          where: { id: communityId },
+          select: {
+            id: true,
+            name: true,
+          },
+        });
+
+        if (!community) {
+          return {
+            success: false,
+            reason: 'COMMUNITY_NOT_FOUND',
+            message: `No se encontró la comunidad con ID ${communityId}.`,
+          };
+        }
+
+        const membership = await prisma.community_Member.findUnique({
+          where: {
+            userId_communityId: {
+              userId,
+              communityId,
+            },
+          },
+          select: {
+            exitAt: true,
+          },
+        });
+
+        if (!membership || membership.exitAt) {
+          return {
+            success: false,
+            reason: 'NOT_COMMUNITY_MEMBER',
+            message: `No perteneces a la comunidad con ID ${communityId}. No puedo crear un evento allí.`,
+          };
+        }
+
+        targetCommunityId = community.id;
+      }
+
+      const selectedVisibility =
+        visibility && visibility === 'PUBLIC' ? EventVisibility.PUBLIC : EventVisibility.PRIVATE;
+
+      if (selectedVisibility === EventVisibility.PUBLIC && !targetCommunityId) {
+        return {
+          success: false,
+          reason: 'PUBLIC_EVENT_REQUIRES_COMMUNITY',
+          message: 'Para crear un evento público debes indicar una comunidad anfitriona.',
+        };
+      }
+
       const eventDateUtc = eventDate.setZone('UTC');
+      const defaultDurationHours = 3;
+      const timeEndUtc = eventDateUtc.plus({ hours: defaultDurationHours });
 
       const event = await prisma.event.create({
         data: {
           name: eventName,
-          description: description || `Evento creado en ${place.name}`,
+          description: description?.trim() || `Evento creado en ${place.name}`,
           timeBegin: eventDateUtc.toJSDate(),
+          timeEnd: timeEndUtc.toJSDate(),
           placeId: place.id,
           organizerId: userId,
           minAge,
           status: 'proximo',
+          communityId: targetCommunityId,
+          visibility: selectedVisibility,
         },
         include: {
           place: {
             select: {
               name: true,
               city: true,
-              direction: true,
+            },
+          },
+          community: {
+            select: {
+              id: true,
+              name: true,
             },
           },
         },
       });
+
+      const localTime = eventDate.setZone(EVENT_TIMEZONE);
+      const localEnd = timeEndUtc.setZone(EVENT_TIMEZONE);
+
+      const localTimeDescription = localTime.toFormat('cccc d LLL yyyy, hh:mm a');
+      const localEndDescription = localEnd.toFormat('cccc d LLL yyyy, hh:mm a');
 
       return {
         success: true,
@@ -691,17 +780,21 @@ export const createEventTool: AITool = {
             city: event.place.city,
           },
           timeBegin: event.timeBegin,
+          timeEnd: event.timeEnd,
         },
-        message: `Evento "${eventName}" creado exitosamente en ${place.name}, ${place.city}`,
+        message: `Evento "${eventName}" creado exitosamente en ${place.name}${
+          event.place.city ? `, ${event.place.city}` : ''
+        }${event.community ? ` para la comunidad ${event.community.name}` : ''}.`,
         details: {
           placeId: place.id,
-          timeZone: EVENT_TIMEZONE,
+          communityId: targetCommunityId,
+          visibility: selectedVisibility,
           parsedDate: eventDate.toISO(),
-          localTimeDescription: eventDate.setZone(EVENT_TIMEZONE).toFormat('cccc d LLL yyyy, hh:mm a'),
-          localEndDescription: null,
+          localTimeDescription,
+          localEndDescription,
         },
-        localTimeDescription: eventDate.setZone(EVENT_TIMEZONE).toFormat('cccc d LLL yyyy, hh:mm a'),
-        localEndDescription: null,
+        localTimeDescription,
+        localEndDescription,
       };
     } catch (error: any) {
       console.error('Error creating event:', error);
@@ -778,6 +871,26 @@ export const getUpcomingEventsTool: AITool = {
             type: true,
           },
         },
+        tickets: {
+          select: {
+            price: true,
+          },
+        },
+        reviews: {
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+          select: {
+            calification: true,
+            comment: true,
+            createdAt: true,
+            user: {
+              select: {
+                name: true,
+                lastName: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -817,6 +930,28 @@ export const getUpcomingEventsTool: AITool = {
                 .toFormat('hh:mm a')
             : null;
 
+      const priceNumbers =
+        event.tickets?.map(ticket => decimalToNumber(ticket.price)).filter(price => Number.isFinite(price) && price > 0) ?? [];
+      const lowestPriceNumber = priceNumbers.length > 0 ? Math.min(...priceNumbers) : undefined;
+      const ticketInfo =
+        (event.tickets?.length ?? 0) > 0
+          ? {
+              requiresPurchase: true,
+              lowestPrice:
+                lowestPriceNumber !== undefined && Number.isFinite(lowestPriceNumber)
+                  ? lowestPriceNumber.toFixed(2)
+                  : undefined,
+            }
+          : { requiresPurchase: false };
+
+      const recentReviews =
+        event.reviews?.map(review => ({
+          reviewerName: [review.user?.name, review.user?.lastName].filter(Boolean).join(' ') || null,
+          rating: review.calification,
+          comment: sanitizeComment(review.comment),
+          createdAt: review.createdAt.toISOString(),
+        })) ?? [];
+
       return {
         id: event.id,
         name: event.name,
@@ -836,6 +971,8 @@ export const getUpcomingEventsTool: AITool = {
             type: event.place.type,
           }),
         },
+        ticketInfo,
+        recentReviews,
       };
     });
 
@@ -853,6 +990,376 @@ export const getUpcomingEventsTool: AITool = {
       message: ['Estos son tus eventos para los próximos 30 días:']
         .concat(summaryLines)
         .join('\n'),
+    };
+  },
+};
+
+/**
+ * Tool: List events for a community the user belongs to.
+ */
+export const getCommunityEventsTool: AITool = {
+  name: 'get_community_events',
+  description:
+    'Devuelve los eventos asociados a una comunidad en la que el usuario participa. Ideal para mostrar los planes disponibles dentro de la comunidad.',
+  parameters: {
+    type: 'object',
+    properties: {
+      communityId: {
+        type: 'number',
+        description: 'REQUIRED: ID de la comunidad a consultar.',
+      },
+      status: {
+        type: 'string',
+        description: 'Filtro opcional por estado del evento (por ejemplo "proximo", "finalizado").',
+      },
+      visibility: {
+        type: 'string',
+        enum: ['PUBLIC', 'PRIVATE'],
+        description: 'Filtra por visibilidad del evento. Por defecto se muestran ambos.',
+      },
+      upcomingOnly: {
+        type: 'boolean',
+        description: 'Si es true, solo devuelve eventos con fecha futura.',
+      },
+      limit: {
+        type: 'number',
+        description: 'Límite opcional de resultados (por defecto 10, máximo 20).',
+      },
+    },
+    required: ['communityId'],
+  },
+  handler: async (
+    params: { communityId: number; status?: string; visibility?: 'PUBLIC' | 'PRIVATE'; upcomingOnly?: boolean; limit?: number },
+    userId: number
+  ): Promise<CommunityEventsResult> => {
+    const { communityId, status, visibility, upcomingOnly = false } = params;
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 20);
+
+    if (!communityId || Number.isNaN(communityId)) {
+      return {
+        success: false,
+        reason: 'INVALID_COMMUNITY_ID',
+        events: [],
+        message: 'Debes proporcionar el ID de la comunidad para consultar sus eventos.',
+      };
+    }
+
+    const membership = await prisma.community_Member.findUnique({
+      where: {
+        userId_communityId: {
+          userId,
+          communityId,
+        },
+      },
+      select: {
+        exitAt: true,
+      },
+    });
+
+    if (!membership || membership.exitAt) {
+      return {
+        success: false,
+        reason: 'NOT_COMMUNITY_MEMBER',
+        events: [],
+        message: 'No perteneces a esa comunidad, por lo que no puedo mostrarte sus eventos.',
+      };
+    }
+
+    const where: any = {
+      communityId,
+    };
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (visibility) {
+      where.visibility = visibility;
+    }
+
+    if (upcomingOnly) {
+      where.timeBegin = {
+        gte: new Date(),
+      };
+    }
+
+    const events = await prisma.event.findMany({
+      where,
+      take: limit,
+      orderBy: {
+        timeBegin: 'asc',
+      },
+      include: {
+        place: {
+          select: {
+            id: true,
+            name: true,
+            city: true,
+            country: true,
+            image: true,
+          },
+        },
+        organizer: {
+          select: {
+            id: true,
+            name: true,
+            lastName: true,
+            image: true,
+          },
+        },
+        tickets: {
+          select: {
+            price: true,
+          },
+        },
+        reviews: {
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+          select: {
+            calification: true,
+            comment: true,
+            createdAt: true,
+            user: {
+              select: {
+                name: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            attendees: true,
+            reviews: true,
+          },
+        },
+      },
+    });
+
+    const formatted: CommunityEventSummary[] = events.map(event => {
+      const localBegin = DateTime.fromJSDate(event.timeBegin).setZone(EVENT_TIMEZONE);
+      const localEnd = event.timeEnd
+        ? DateTime.fromJSDate(event.timeEnd).setZone(EVENT_TIMEZONE)
+        : null;
+
+      const priceNumbers =
+        event.tickets?.map(ticket => decimalToNumber(ticket.price)).filter(price => Number.isFinite(price) && price > 0) ?? [];
+      const lowestPriceNumber = priceNumbers.length > 0 ? Math.min(...priceNumbers) : undefined;
+      const ticketInfo =
+        (event.tickets?.length ?? 0) > 0
+          ? {
+              requiresPurchase: true,
+              lowestPrice:
+                lowestPriceNumber !== undefined && Number.isFinite(lowestPriceNumber)
+                  ? lowestPriceNumber.toFixed(2)
+                  : undefined,
+            }
+          : { requiresPurchase: false };
+
+      const recentReviews =
+        event.reviews?.map(review => ({
+          reviewerName: [review.user?.name, review.user?.lastName].filter(Boolean).join(' ') || null,
+          rating: review.calification,
+          comment: sanitizeComment(review.comment),
+          createdAt: review.createdAt.toISOString(),
+        })) ?? [];
+
+      return {
+        id: event.id,
+        name: event.name,
+        description: event.description,
+        timeBegin: event.timeBegin.toISOString(),
+        timeEnd: event.timeEnd ? event.timeEnd.toISOString() : null,
+        localTimeDescription: localBegin.toFormat('cccc d LLL yyyy, hh:mm a'),
+        localEndDescription: localEnd ? localEnd.toFormat('cccc d LLL yyyy, hh:mm a') : null,
+        status: event.status,
+        visibility: event.visibility,
+        place: event.place
+          ? {
+              id: event.place.id,
+              name: event.place.name,
+              city: event.place.city,
+              country: event.place.country,
+              image: event.place.image,
+            }
+          : null,
+        organizer: event.organizer
+          ? {
+              id: event.organizer.id,
+              name: event.organizer.name,
+              lastName: event.organizer.lastName,
+              image: event.organizer.image,
+            }
+          : null,
+        attendeeCount: event._count.attendees,
+        ticketInfo,
+        recentReviews,
+      };
+    });
+
+    if (formatted.length === 0) {
+      return {
+        success: true,
+        events: [],
+        message: 'La comunidad no tiene eventos que coincidan con ese filtro.',
+      };
+    }
+
+    const summaryLines = formatted.map(event => {
+      const placeInfo = event.place?.city ? ` en ${event.place.city}` : '';
+      return `• ${event.name}${placeInfo} – ${event.localTimeDescription}`;
+    });
+
+    return {
+      success: true,
+      events: formatted,
+      message: ['Eventos disponibles en la comunidad:'].concat(summaryLines).join('\n'),
+    };
+  },
+};
+
+/**
+ * Tool: Join a public community event.
+ */
+export const joinCommunityEventTool: AITool = {
+  name: 'join_community_event',
+  description:
+    'Permite inscribirse en un evento público de una comunidad a la que pertenece el usuario.',
+  parameters: {
+    type: 'object',
+    properties: {
+      eventId: {
+        type: 'number',
+        description: 'REQUIRED: ID del evento al que se desea unir.',
+      },
+    },
+    required: ['eventId'],
+  },
+  handler: async (params: { eventId: number }, userId: number): Promise<JoinEventResult> => {
+    const { eventId } = params;
+
+    if (!eventId || Number.isNaN(eventId)) {
+      return {
+        success: false,
+        reason: 'INVALID_EVENT_ID',
+        message: 'Debes proporcionar un ID de evento válido para unirte.',
+      };
+    }
+
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: {
+        id: true,
+        name: true,
+        timeBegin: true,
+        visibility: true,
+        communityId: true,
+        status: true,
+        community: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!event) {
+      return {
+        success: false,
+        reason: 'EVENT_NOT_FOUND',
+        message: 'No encontré un evento con ese ID.',
+      };
+    }
+
+    if (event.visibility !== EventVisibility.PUBLIC) {
+      return {
+        success: false,
+        reason: 'EVENT_NOT_PUBLIC',
+        message: 'Ese evento es privado, no se puede unir automáticamente.',
+      };
+    }
+
+    if (!event.communityId) {
+      return {
+        success: false,
+        reason: 'EVENT_HAS_NO_COMMUNITY',
+        message: 'El evento no tiene una comunidad asociada, por lo que se considera privado.',
+      };
+    }
+
+    if (['finalizado', 'cancelado'].includes(event.status)) {
+      return {
+        success: false,
+        reason: 'EVENT_NOT_ACTIVE',
+        message: 'Ese evento ya no está activo, no puedo registrarte.',
+      };
+    }
+
+    const membership = await prisma.community_Member.findUnique({
+      where: {
+        userId_communityId: {
+          userId,
+          communityId: event.communityId,
+        },
+      },
+      select: {
+        exitAt: true,
+      },
+    });
+
+    if (!membership || membership.exitAt) {
+      return {
+        success: false,
+        reason: 'NOT_COMMUNITY_MEMBER',
+        message: 'Solo los miembros activos de la comunidad pueden unirse a este evento público.',
+      };
+    }
+
+    const existingAttendance = await prisma.eventAttendee.findUnique({
+      where: {
+        eventId_userId: {
+          eventId: event.id,
+          userId,
+        },
+      },
+    });
+
+    const localTime = DateTime.fromJSDate(event.timeBegin).setZone(EVENT_TIMEZONE);
+    const localTimeDescription = localTime.toFormat('cccc d LLL yyyy, hh:mm a');
+
+    if (existingAttendance) {
+      return {
+        success: true,
+        alreadyJoined: true,
+        message: `Ya estabas registrado en "${event.name}". Nos vemos el ${localTimeDescription}.`,
+        attendance: {
+          eventId: existingAttendance.eventId,
+          userId: existingAttendance.userId,
+          joinedAt: existingAttendance.joinedAt.toISOString(),
+          eventName: event.name,
+          localTimeDescription,
+        },
+      };
+    }
+
+    const attendance = await prisma.eventAttendee.create({
+      data: {
+        eventId: event.id,
+        userId,
+      },
+    });
+
+    return {
+      success: true,
+      message: `¡Listo! Te uniste a "${event.name}". El evento es el ${localTimeDescription}.`,
+      attendance: {
+        eventId: attendance.eventId,
+        userId: attendance.userId,
+        joinedAt: attendance.joinedAt.toISOString(),
+        eventName: event.name,
+        localTimeDescription,
+      },
     };
   },
 };
@@ -1051,6 +1558,8 @@ export const availableTools: AITool[] = [
   getAvailablePlacesTool,
   getPlaceReviewsTool,
   getUpcomingEventsTool,
+  getCommunityEventsTool,
+  joinCommunityEventTool,
   updateEventTool,
   createEventTool,
 ];
