@@ -86,12 +86,24 @@ router.get('/', async (req: Request, res: Response) => {
       }
     }
 
+    const timeFilters: { gte?: Date; lte?: Date } = {};
+
     if (timeBegin) {
-      where.timeBegin = { gte: new Date(timeBegin as string) };
+      const beginDate = new Date(timeBegin as string);
+      if (!Number.isNaN(beginDate.getTime())) {
+        timeFilters.gte = beginDate;
+      }
     }
 
     if (timeEnd) {
-      where.timeBegin = { lte: new Date(timeEnd as string) };
+      const endDate = new Date(timeEnd as string);
+      if (!Number.isNaN(endDate.getTime())) {
+        timeFilters.lte = endDate;
+      }
+    }
+
+    if (Object.keys(timeFilters).length > 0) {
+      where.timeBegin = timeFilters;
     }
 
     const [events, total] = await Promise.all([
