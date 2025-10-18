@@ -1573,6 +1573,16 @@ export const updateEventTool: AITool = {
         type: 'number',
         description: 'ID del evento que se desea modificar. Obténlo primero con get_upcoming_events.',
       },
+      eventLabel: {
+        type: 'string',
+        description:
+          'Nombre o frase con la que el usuario identificó el evento en la conversación (ej. "evento en Restaurante Urrutia"). Úsalo solo cuando no tengas el ID a mano.',
+      },
+      referenceDate: {
+        type: 'string',
+        description:
+          'Fecha del evento (si se conoce) para ayudar a desambiguar cuando hay múltiples eventos similares. Úsalo junto con eventLabel.',
+      },
       newName: {
         type: 'string',
         description: 'Nuevo nombre del evento (opcional).',
@@ -1587,24 +1597,26 @@ export const updateEventTool: AITool = {
           'Nueva fecha en lenguaje natural (por ejemplo "este viernes 9pm"). Si se omite, no se toca la fecha.',
       },
     },
-    required: ['eventId'],
   },
   handler: async (
     params: {
-      eventId: number;
+      eventId?: number;
+      eventLabel?: string;
+      referenceDate?: string;
       newName?: string;
       description?: string;
       date?: string;
     },
     userId: number
   ): Promise<EventUpdateResult> => {
-    const { eventId, newName, description, date } = params;
+    const { eventId, eventLabel, referenceDate, newName, description, date } = params;
 
-    if (!eventId || Number.isNaN(eventId)) {
+    if ((!eventId || Number.isNaN(eventId)) && !eventLabel) {
       return {
         success: false,
         reason: 'EVENT_ID_REQUIRED',
-        message: 'Necesito el ID del evento que deseas modificar. Primero consulta tus eventos programados.',
+        message:
+          'Necesito identificar el evento antes de modificarlo. Ejecuta get_upcoming_events y proporciona el evento a modificar, o menciona claramente el nombre del evento para que pueda localizarlo.',
       };
     }
 
@@ -1616,18 +1628,81 @@ export const updateEventTool: AITool = {
       };
     }
 
-    const existing = await prisma.event.findUnique({
-      where: { id: eventId },
-      include: {
-        place: {
-          select: {
-            id: true,
-            name: true,
-            city: true,
+    let existing = null;
+
+    if (eventId && !Number.isNaN(eventId)) {
+      existing = await prisma.event.findUnique({
+        where: { id: eventId },
+        include: {
+          place: {
+            select: {
+              id: true,
+              name: true,
+              city: true,
+            },
           },
         },
-      },
-    });
+      });
+    }
+
+    if (!existing && eventLabel) {
+      const label = eventLabel.trim();
+      if (label.length > 0) {
+        const filters: any = {
+          organizerId: userId,
+          name: {
+            contains: label,
+            mode: 'insensitive',
+          },
+        };
+
+        if (referenceDate) {
+          const parsedRef = parseNaturalLanguageDate(referenceDate);
+          if (parsedRef.success && parsedRef.date) {
+            const dayStart = parsedRef.date.startOf('day').setZone(EVENT_TIMEZONE);
+            const dayEnd = dayStart.plus({ days: 1 });
+            filters.timeBegin = {
+              gte: dayStart.toJSDate(),
+              lt: dayEnd.toJSDate(),
+            };
+          }
+        }
+
+        const candidates = await prisma.event.findMany({
+          where: filters,
+          orderBy: { timeBegin: 'desc' },
+          take: 3,
+          include: {
+            place: {
+              select: {
+                id: true,
+                name: true,
+                city: true,
+              },
+            },
+          },
+        });
+
+        if (candidates.length === 1) {
+          existing = candidates[0];
+        } else if (candidates.length > 1) {
+          return {
+            success: false,
+            reason: 'AMBIGUOUS_EVENT',
+            message:
+              'Encontré varios eventos con un nombre similar. Revisa tu lista de eventos y selecciona el que deseas modificar.',
+            details: {
+              matchingEvents: candidates.map(event => ({
+                id: event.id,
+                name: event.name,
+                timeBegin: event.timeBegin,
+                place: event.place?.name,
+              })),
+            },
+          };
+        }
+      }
+    }
 
     if (!existing || existing.organizerId !== userId) {
       return {
