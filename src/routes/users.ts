@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticate, authorize } from '../middlewares/auth';
 import { validate } from '../middlewares/validation';
@@ -158,6 +158,33 @@ router.delete('/:id', authenticate, authorize(['ADMIN']), async (req: any, res: 
     if (error.code === 'P2025') {
       return next(new HTTP404Error('User not found'));
     }
+    next(error);
+  }
+});
+
+router.get('/member/:userId', async (req: Request, res: Response, next) => {
+  try {
+    const userId = Number(req.params.userId);
+    if (!Number.isInteger(userId)) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const memberships = await prisma.community_Member.findMany({
+      where: { userId },
+      include: {
+        community: true,
+      },
+    });
+
+    const communities = memberships.map(m => ({
+      id: m.community.id,
+      name: m.community.name,
+      role: m.role,
+      joinedAt: m.createdAt,
+    }));
+
+    res.json({ communities });
+  } catch (error) {
     next(error);
   }
 });
