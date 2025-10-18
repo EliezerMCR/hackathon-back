@@ -1,52 +1,33 @@
-# Hackathon Backend API# Hackathon Backend
+# Hackathon Backend API
 
+Backend API desarrollado con TypeScript, Express, Prisma ORM y PostgreSQL (Neon).
 
+## 🚀 Stack Tecnológico
 
-Backend API desarrollado con TypeScript, Express, Prisma ORM y PostgreSQL (Neon).Backend API desarrollado con TypeScript, Express, Prisma y PostgreSQL (Neon).
-
-
-
-## 🚀 Stack Tecnológico## 🚀 Características
-
-
-
-- **Runtime**: Node.js >=18- **Express.js** con TypeScript
-
-- **Framework**: Express 4.21- **Prisma ORM** para base de datos
-
-- **Base de datos**: PostgreSQL (Neon)- **PostgreSQL** con Neon Database
-
-- **ORM**: Prisma 6.17- **Zod** para validación de datos
-
-- **Validación**: Zod 3.24- **CORS** y **Helmet** para seguridad
-
-- **TypeScript**: 5.7- Endpoints CRUD para Users y Posts
-
-- **Seguridad**: Helmet, CORS- Deploy automático en **Vercel**
-
+- **Runtime**: Node.js >=18
+- **Framework**: Express 4.21
+- **Base de datos**: PostgreSQL (Neon)
+- **ORM**: Prisma 6.17
+- **Validación**: Zod 3.24
+- **TypeScript**: 5.7
+- **Seguridad**: Helmet, CORS
 - **Deploy**: Vercel Serverless
-
-## 📦 Instalación
 
 ## 📋 Requisitos Previos
 
-1. Clona el repositorio:
-
-- Node.js >= 18```bash
-
-- npm >= 9.0.0git clone <repo-url>
-
-- Una base de datos PostgreSQL (recomendado: Neon)cd hackathon-back
-
-```
+- Node.js >= 18
+- npm >= 9.0.0
+- Una base de datos PostgreSQL (recomendado: Neon)
 
 ## 🛠️ Instalación
 
-2. Instala dependencias:
+```bash
+# Clonar el repositorio
+git clone <repo-url>
+cd hackathon-back
 
-```bash```bash
-
-# Clonar el repositorionpm install
+# Instalar dependencias
+npm install
 
 git clone <repository-url>```
 

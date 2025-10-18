@@ -1,22 +1,32 @@
+/**
+ * Express Application Configuration
+ * Este es el ÚNICO archivo que configura la aplicación Express
+ * Tanto desarrollo local (src/index.ts) como Vercel (api/index.ts) importan de aquí
+ */
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
 
 // Import routes
 import userRoutes from './routes/users';
+import authRoutes from './routes/auth';
+import placeRoutes from './routes/places';
+import productRoutes from './routes/products';
+import eventRoutes from './routes/events';
 import communityRoutes from './routes/communities';
 import requestRoutes from './routes/requests';
 import invitationRoutes from './routes/invitations';
 import ticketRoutes from './routes/tickets';
-import productRoutes from './routes/products';
+import promotionRoutes from './routes/promotions';
+import adRoutes from './routes/ads';
+import reviewRoutes from './routes/reviews';
+import categoryRoutes from './routes/categories';
+import { authenticate, authorize } from './middlewares/auth';
+import { errorHandler } from './middlewares/errorHandler';
 
 // Load environment variables
 dotenv.config();
-
-// Initialize Prisma
-export const prisma = new PrismaClient();
 
 // Create Express app
 const app = express();
@@ -36,34 +46,45 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.get('/api', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    message: 'API is working',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // API Routes
 app.use('/api/users', userRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/places', placeRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/events', eventRoutes);
 app.use('/api/communities', communityRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/invitations', invitationRoutes);
 app.use('/api/tickets', ticketRoutes);
-app.use('/api/products', productRoutes);
+app.use('/api/promotions', promotionRoutes);
+app.use('/api/ads', adRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/categories', categoryRoutes);
+
+// Protected route example
+app.get('/api/protected', authenticate, authorize(['ADMIN']), (req, res) => {
+  res.json({ message: 'This is a protected route for admins only' });
+});
 
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ 
-    error: 'Route not found',
+    error: 'NOT_FOUND',
+    message: 'Route not found',
     path: req.originalUrl 
   });
 });
 
 // Global error handler
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Error:', err.message);
-  res.status(500).json({ 
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
-});
+app.use(errorHandler);
 
-// Graceful shutdown
-process.on('beforeExit', async () => {
-  await prisma.$disconnect();
-});
-
+// Export app (sin iniciar el servidor)
 export default app;
