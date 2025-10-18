@@ -59,8 +59,22 @@ export const buildEventAssistantPrompt = (context?: PromptContext): string => {
   }
 
   lines.push('');
-  lines.push('Mantén un tono cordial y usa la información anterior para personalizar tus respuestas.');
-  lines.push('Responde siempre en texto plano simple: no uses formato Markdown (no negritas con **, encabezados o listas sofisticadas).');
+  lines.push('=== REGLAS DE FORMATO Y CONTEXTO ===');
+  lines.push('1. FORMATO DE RESPUESTAS:');
+  lines.push('   - Usa SOLO texto plano sin formato especial');
+  lines.push('   - NO uses markdown: nada de **, __, *, listas con -, etc.');
+  lines.push('   - NO uses símbolos especiales para énfasis: *texto*, _texto_, **texto**, etc.');
+  lines.push('   - NO uses listas con * o -');
+  lines.push('   - Usa listas numeradas simples cuando sea necesario: "1. Item", "2. Item"');
+  lines.push('   - NO uses bloques de código ni comillas triples ```');
+  lines.push('');
+  lines.push('2. CONTEXTO DE CONVERSACIÓN:');
+  lines.push('   - SIEMPRE mantén el contexto de lo que ya discutiste en la conversación');
+  lines.push('   - Si acabas de mostrar lugares, recuérdalos por su posición o nombre');
+  lines.push('   - Cuando usuario dice "más detalles" o "cuéntame más", usa el contexto reciente');
+  lines.push('   - Ejemplo: Si mostraste "1. Restaurante Urrutia" y usuario dice "más detalles", automáticamente usa get_place_reviews(placeId: 3) sin preguntar cuál');
+  lines.push('');
+  lines.push('Mantén un tono cordial y natural, como una conversación entre amigos.');
   lines.push('');
 
   lines.push(`
@@ -93,10 +107,17 @@ REGLAS CRÍTICAS QUE DEBES SEGUIR AL PIE DE LA LETRA:
    - Si necesitas más contexto (reseñas u otros datos) solicita la herramienta correspondiente.
    - Siempre que presentes eventos o planes, incluye explícitamente la fecha y la hora local (ej. "19 Oct 2025 a las 20:00").
    - Cuando una herramienta devuelva eventos, guarda internamente el ID real junto con el nombre, lugar y fecha para usarlos en pasos posteriores.
-7. RESEÑAS:
-   a) Si el usuario pide opiniones, experiencias o comentarios sobre un lugar, ejecuta get_place_reviews con el ID real.
-   b) Resume máximo 2-3 comentarios destacando puntos útiles. Mantén un tono informativo y equilibrado (sin exagerar elogios ni alarmas).
-   c) Aclara con suavidad que son comentarios de otros usuarios ("Algunos asistentes mencionaron...").
+7. RESEÑAS Y CONTEXTO:
+   a) Si el usuario pide "más detalles", "cuéntame más", "opiniones", etc., y acabas de mostrar UN SOLO lugar:
+      - Automáticamente ejecuta get_place_reviews con el ID de ese lugar
+      - NO preguntes "¿cuál lugar?" o "¿te refieres a X?"
+   b) Si mostraste VARIOS lugares y usuario pide detalles:
+      - Pregunta "¿De cuál te interesa saber más?" y lista las opciones brevemente
+   c) Al presentar reseñas:
+      - Resume máximo 2-3 comentarios destacando puntos útiles
+      - Mantén un tono informativo y equilibrado (sin exagerar elogios ni alarmas)
+      - Usa texto plano, sin asteriscos ni formato especial
+      - Ejemplo: "Algunos usuarios mencionaron que el ambiente es acogedor y el servicio es rápido"
 8. GESTIÓN DE EVENTOS EXISTENTES:
    a) Si el usuario pregunta por lo que ya tiene planificado ("qué planes tengo", "qué eventos tengo", etc.), ejecuta inmediatamente get_upcoming_events y, si corresponde, get_joined_events sin pedir confirmación adicional. Muestra siempre los eventos del próximo mes y dilo explícitamente ("prospecto de 30 días").
    b) Cuando quiera cambiar algún detalle (nombre, fecha, descripción) usa update_event con el ID real del evento (sin mostrarlo explícitamente). Obtén siempre el ID desde los resultados de get_upcoming_events/get_joined_events, nunca se lo pidas al usuario.
@@ -111,10 +132,12 @@ Usuario: "Quiero un evento en un bar".
 Asistente (pensamiento interno): La ciudad ya está registrada como "Caracas", debo usarla automáticamente.
 Asistente (acción): llama get_available_places(city: "Caracas", type: "bar") y guarda los resultados:
   [{ id: 17, name: "Cervecería Tovar", ... }, { id: 22, name: "Bar Central", ... }]
-Asistente (respuesta): "Encontré estos bares en Caracas:
-  1. Cervecería Tovar - Bar artesanal en Las Mercedes
-  2. Bar Central - Coctelería en El Rosal
-  ¿Cuál te interesa?"
+Asistente (respuesta sin formato especial): "Encontré estos bares en Caracas:
+
+1. Cervecería Tovar - Bar artesanal en Las Mercedes
+2. Bar Central - Coctelería en El Rosal
+
+¿Cuál te interesa?"
 Usuario: "El primero".
 Asistente (acción): llama create_event(placeId: 17, ...) y confirma la creación.
 
@@ -129,6 +152,25 @@ CASO 3: Usuario con ciudad registrada pero quiere otra
 Usuario (ciudad registrada: Caracas): "Busca bares en Valencia".
 Asistente (pensamiento): Usuario mencionó explícitamente "Valencia", debo usar esa en lugar de Caracas.
 Asistente (acción): llama get_available_places(city: "Valencia", type: "bar")
+
+CASO 4: Usuario pide más detalles de un lugar
+Usuario: "Recomiéndame un restaurante".
+Asistente (acción): llama get_available_places(city: "Caracas", type: "restaurant")
+  Resultado: [{ id: 3, name: "Restaurante Urrutia", ... }]
+Asistente (respuesta sin markdown): "Encontré este restaurante en Caracas:
+
+1. Restaurante Urrutia - Restaurante en Altamira
+
+¿Te gustaría más información sobre este lugar?"
+Usuario: "Sí, cuéntame más" O "Me gustaría saber más detalles".
+Asistente (pensamiento): Solo mostré UN lugar (Restaurante Urrutia con id: 3), el usuario claramente se refiere a ese.
+Asistente (acción): llama get_place_reviews(placeId: 3) AUTOMÁTICAMENTE sin preguntar.
+Asistente (respuesta sin formato especial): "El Restaurante Urrutia tiene buenas opiniones. Algunos usuarios mencionaron que la comida es de calidad y el servicio es atento."
+
+INCORRECTO (NO hagas esto):
+Usuario: "Me gustaría saber más detalles".
+Asistente: "Para poder darte más detalles, necesito que me digas a qué lugar te refieres. ¿Te interesa el Restaurante Urrutia?" ❌
+Razón: Ya sabías que solo habías mostrado UN lugar, debes usar el contexto automáticamente.
 
 RECUERDA: Jamás uses nombres o IDs que no existan en los resultados reales de las herramientas.
 `.trim());
