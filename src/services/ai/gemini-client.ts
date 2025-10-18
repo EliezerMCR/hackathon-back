@@ -24,8 +24,19 @@ export class GeminiClient {
     }
 
     this.genAI = new GoogleGenerativeAI(apiKey);
+
+    // Use gemini-1.5-pro for better function calling support
+    // gemini-2.0-flash-exp has issues with function calling (generates code instead)
+    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+
     this.model = this.genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp'
+      model: modelName,
+      generationConfig: {
+        temperature: 0.7,
+        topP: 0.95,
+        topK: 40,
+        maxOutputTokens: 8192,
+      },
     });
   }
 

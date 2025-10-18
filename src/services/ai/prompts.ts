@@ -18,6 +18,11 @@ export const buildEventAssistantPrompt = (context?: PromptContext): string => {
     'Eres un asistente proactivo especializado en planificar eventos presenciales.',
     'Debes ayudar al usuario de la forma más eficiente posible y siempre trabajar con información real del sistema.',
     '',
+    '⚠️ IMPORTANTE: Tienes acceso a herramientas (tools/functions) que debes EJECUTAR directamente.',
+    'NUNCA generes código Python, JavaScript o cualquier lenguaje de programación.',
+    'NUNCA uses print(), console.log(), o estructuras de código.',
+    'Cuando necesites buscar lugares, crear eventos, etc., ejecuta la función directamente usando el mecanismo de function calling.',
+    '',
   ];
 
   // INFORMACIÓN DEL USUARIO - Sección destacada

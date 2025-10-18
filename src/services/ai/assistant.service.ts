@@ -151,8 +151,23 @@ export class AIAssistantService {
         const response = result.response;
         const functionCalls = response.functionCalls();
 
+        // Debug logging
         if (!functionCalls || functionCalls.length === 0) {
-          finalResponse = response.text();
+          const responseText = response.text();
+          console.log('[AI Debug] No function calls detected. Response:', responseText.substring(0, 200));
+
+          // Check if response contains code that looks like it should be a function call
+          if (responseText.includes('get_available_places') ||
+              responseText.includes('create_event') ||
+              responseText.includes('print(') ||
+              responseText.includes('default_api')) {
+            console.error('[AI Error] Model returned code instead of function call!');
+            console.error('Response:', responseText);
+            finalResponse = 'Error interno: El asistente generó código en lugar de ejecutar las herramientas. Por favor intenta de nuevo.';
+            break;
+          }
+
+          finalResponse = responseText;
           break;
         }
 
