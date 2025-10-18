@@ -36,96 +36,98 @@ enum PromotionType {
 }
 
 model User {
-  id               Int                @id @default(autoincrement())
-  name             String             @db.VarChar(100)
-  lastName         String             @map("last_name") @db.VarChar(100)
-  email            String             @unique @db.VarChar(255)
-  password         String             @db.VarChar(255)
-  birthDate        DateTime           @map("birth_date") @db.Date
-  city             String?            @db.VarChar(100)
-  country          String?            @db.VarChar(100)
-  gender           Gender
-  createdAt        DateTime           @default(now()) @map("created_at")
-  role             ROLE
-  membership       Membership         @default(NORMAL)
-  documentId       Int                @map("document_id")
-  image            String?
-  blockedUserId    Int?               @map("blocked_user")
-  blockedUser      User?              @relation("UserBlocks", fields: [blockedUserId], references: [id])
-  blockedBy        User[]             @relation("UserBlocks")
-  places           Place[]            @relation("PlaceOwner")
-  organizedEvents  Event[]            @relation("EventOrganizer")
-  communityMembers Community_Member[]
-  reportsSent      Report[]           @relation("ReportsFrom")
-  reportsReceived  Report[]           @relation("ReportsTo")
-  invitationsSent  Invitation[]       @relation("InvitationsFrom")
-  invitationsReceived Invitation[]    @relation("InvitationsTo")
-  requests         Request[]          @relation("RequestFrom")
-  requestsAccepted Request[]          @relation("RequestAcceptedBy")
-  boughtTickets    Bought_Ticket[]
-  reviews          Review[]
+  id                   Int        @id @default(autoincrement())
+  name                 String     @db.VarChar(100)
+  lastName             String     @map("last_name") @db.VarChar(100)
+  email                String     @unique @db.VarChar(255)
+  password             String     @db.VarChar(255)
+  birthDate            DateTime   @map("birth_date") @db.Date
+  city                 String?    @db.VarChar(100)
+  country              String?    @db.VarChar(100)
+  gender               Gender
+  createdAt            DateTime   @default(now()) @map("created_at")
+  role                 ROLE
+  membership           Membership @default(NORMAL)
+  documentId           Int        @map("document_id")
+  image                String?
+  blockedUserId        Int?       @map("blocked_user")
+  passwordResetToken   String?    @map("password_reset_token") @db.VarChar(255)
+  passwordResetExpires DateTime?  @map("password_reset_expires")
+  blockedUser         User?              @relation("UserBlocks", fields: [blockedUserId], references: [id])
+  blockedBy           User[]             @relation("UserBlocks")
+  places              Place[]            @relation("PlaceOwner")
+  organizedEvents     Event[]            @relation("EventOrganizer")
+  communityMembers    Community_Member[]
+  reportsSent         Report[]           @relation("ReportsFrom")
+  reportsReceived     Report[]           @relation("ReportsTo")
+  invitationsSent     Invitation[]       @relation("InvitationsFrom")
+  invitationsReceived Invitation[]       @relation("InvitationsTo")
+  requests            Request[]          @relation("RequestFrom")
+  requestsAccepted    Request[]          @relation("RequestAcceptedBy")
+  boughtTickets       Bought_Ticket[]
+  reviews             Review[]
 
   @@map("User")
 }
 
 model Place {
-  id            Int          @id @default(autoincrement())
-  name          String       @db.VarChar(255)
-  direction     String       @db.Text
-  city          String       @db.VarChar(100)
-  country       String       @db.VarChar(100)
-  capacity      Int?
-  type          String?      @db.VarChar(50)
-  ownerId       Int?         @map("id_propietary")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  image         String?
-  mapUrl        String?      @map("map_url")
-  igUrl         String?      @map("ig_url")
-  facebookUrl   String?      @map("facebook_url")
-  tiktokUrl     String?      @map("tiktok_url")
-  status        Status       @default(PENDING)
-  owner         User?        @relation("PlaceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  products      Product[]
-  events        Event[]
-  reviews       Review[]
-  ads           Ad[]
-  invitations   Invitation[]
+  id          Int          @id @default(autoincrement())
+  name        String       @db.VarChar(255)
+  direction   String       @db.Text
+  city        String       @db.VarChar(100)
+  country     String       @db.VarChar(100)
+  capacity    Int?
+  type        String?      @db.VarChar(50)
+  ownerId     Int?         @map("id_propietary")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  image       String?
+  mapUrl      String?      @map("map_url")
+  igUrl       String?      @map("ig_url")
+  facebookUrl String?      @map("facebook_url")
+  tiktokUrl   String?      @map("tiktok_url")
+  status      Status       @default(PENDING)
+  owner       User?        @relation("PlaceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  products    Product[]
+  events      Event[]
+  reviews     Review[]
+  ads         Ad[]
+  invitations Invitation[]
 
   @@map("Place")
 }
 
 model Product {
-  id          Int          @id @default(autoincrement())
-  name        String       @db.VarChar(191)
-  price       Decimal      @db.Decimal(10, 2)
-  image       String
-  placeId     Int          @map("place_id")
-  place       Place        @relation(fields: [placeId], references: [id])
-  promotions  Promotion[]
+  id         Int         @id @default(autoincrement())
+  name       String      @db.VarChar(191)
+  price      Decimal     @db.Decimal(10, 2)
+  image      String
+  placeId    Int         @map("place_id")
+  place      Place       @relation(fields: [placeId], references: [id])
+  promotions Promotion[]
 
   @@map("Product")
 }
 
 model Event {
-  id           Int          @id @default(autoincrement())
-  name         String       @db.VarChar(255)
-  description  String?      @db.Text
-  timeBegin    DateTime     @map("time_begin")
-  timeEnd      DateTime?    @map("time_end")
-  placeId      Int          @map("id_place")
-  organizerId  Int          @map("id_organizer")
-  communityId  Int?         @map("community_id")
-  minAge       Int          @map("min_age") @default(18)
-  status       String       @default("proximo") @db.VarChar(20)
-  createdAt    DateTime     @default(now()) @map("created_at")
-  externalUrl  String?      @map("external_url")
-  place        Place        @relation(fields: [placeId], references: [id], onDelete: Cascade)
-  organizer    User         @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
-  community    Community?   @relation(fields: [communityId], references: [id])
-  tickets      Ticket[]
-  reviews      Review[]
-  ads          Ad[]         @relation("AdEvent")
-  invitations  Invitation[]
+  id          Int          @id @default(autoincrement())
+  name        String       @db.VarChar(255)
+  description String?      @db.Text
+  timeBegin   DateTime     @map("time_begin")
+  timeEnd     DateTime?    @map("time_end")
+  placeId     Int          @map("id_place")
+  organizerId Int          @map("id_organizer")
+  communityId Int?         @map("community_id")
+  minAge      Int          @default(18) @map("min_age")
+  status      String       @default("proximo") @db.VarChar(20)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  externalUrl String?      @map("external_url")
+  place       Place        @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  organizer   User         @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  community   Community?   @relation(fields: [communityId], references: [id])
+  tickets     Ticket[]
+  reviews     Review[]
+  ads         Ad[]         @relation("AdEvent")
+  invitations Invitation[]
 
   @@map("Event")
 }
@@ -157,26 +159,26 @@ model Bought_Ticket {
 }
 
 model Review {
-  id           Int       @id @default(autoincrement())
-  userId       Int       @map("id_user")
-  eventId      Int?      @map("id_event")
-  placeId      Int       @map("id_place")
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("id_user")
+  eventId      Int?     @map("id_event")
+  placeId      Int      @map("id_place")
   calification Int
-  comment      String?   @db.Text
-  createdAt    DateTime  @default(now()) @map("created_at")
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  event        Event?    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  place        Place     @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  comment      String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event        Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  place        Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
   @@map("Review")
 }
 
 model Community {
-  id        Int               @id @default(autoincrement())
-  name      String
-  events    Event[]
-  members   Community_Member[]
-  requests  Request[]
+  id       Int                @id @default(autoincrement())
+  name     String
+  events   Event[]
+  members  Community_Member[]
+  requests Request[]
 
   @@map("Community")
 }
@@ -224,15 +226,15 @@ model Invitation {
 }
 
 model Request {
-  id          Int       @id @default(autoincrement())
-  fromId      Int       @map("from_id")
-  communityId Int       @map("community_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  status      Status    @default(PENDING)
-  acceptedById Int?     @map("accepted_by")
-  from        User      @relation("RequestFrom", fields: [fromId], references: [id])
-  community   Community @relation(fields: [communityId], references: [id])
-  acceptedBy  User?     @relation("RequestAcceptedBy", fields: [acceptedById], references: [id])
+  id           Int       @id @default(autoincrement())
+  fromId       Int       @map("from_id")
+  communityId  Int       @map("community_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  status       Status    @default(PENDING)
+  acceptedById Int?      @map("accepted_by")
+  from         User      @relation("RequestFrom", fields: [fromId], references: [id])
+  community    Community @relation(fields: [communityId], references: [id])
+  acceptedBy   User?     @relation("RequestAcceptedBy", fields: [acceptedById], references: [id])
 
   @@unique([fromId, communityId])
   @@map("Request")
@@ -251,16 +253,16 @@ model Ad {
 }
 
 model Promotion {
-  id         Int            @id @default(autoincrement())
+  id         Int           @id @default(autoincrement())
   type       PromotionType
-  productId  Int?           @map("product_id")
-  ticketId   Int?           @map("ticket_id")
-  membership Membership     @default(NORMAL)
+  productId  Int?          @map("product_id")
+  ticketId   Int?          @map("ticket_id")
+  membership Membership    @default(NORMAL)
   discount   Int
-  timeBegin  DateTime       @map("time_begin")
-  timeEnd    DateTime?      @map("time_end")
-  product    Product?       @relation(fields: [productId], references: [id])
-  ticket     Ticket?        @relation(fields: [ticketId], references: [id])
+  timeBegin  DateTime      @map("time_begin")
+  timeEnd    DateTime?     @map("time_end")
+  product    Product?      @relation(fields: [productId], references: [id])
+  ticket     Ticket?       @relation(fields: [ticketId], references: [id])
 
   @@map("Promotion")
 }
