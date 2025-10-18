@@ -328,6 +328,12 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
         communityId,
         status: 'proximo',
         visibility,
+        // Automatically add organizer as attendee
+        attendees: {
+          create: {
+            userId: organizerId,
+          },
+        },
       },
       include: {
         place: {
@@ -350,11 +356,16 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
             name: true,
           },
         },
+        _count: {
+          select: {
+            attendees: true,
+          },
+        },
       },
     });
 
     res.status(201).json({
-      message: 'Evento creado exitosamente',
+      message: 'Evento creado exitosamente. Te has unido automáticamente como asistente.',
       event,
     });
   } catch (error) {
