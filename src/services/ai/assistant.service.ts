@@ -220,10 +220,19 @@ export class AIAssistantService {
         const nextFunctionCalls = functionResponseResult.response.functionCalls();
 
         if (!nextFunctionCalls || nextFunctionCalls.length === 0) {
-          finalResponse = functionResponseResult.response.text();
+          const responseText = functionResponseResult.response.text();
+          console.log('[AI Debug] After tool execution, response:', responseText.substring(0, 200));
+
+          if (!responseText || responseText.trim() === '') {
+            console.error('[AI Error] Model returned empty response after tool execution');
+            finalResponse = 'Lo siento, hubo un problema al procesar tu solicitud. Por favor intenta de nuevo.';
+          } else {
+            finalResponse = responseText;
+          }
           break;
         }
 
+        console.log('[AI Debug] Model wants to call more functions:', nextFunctionCalls.map((fc: any) => fc.name));
         currentMessage = '';
       }
 
