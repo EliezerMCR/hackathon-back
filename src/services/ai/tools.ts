@@ -450,6 +450,11 @@ const decimalToNumber = (value: any): number => {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 };
 
+const formatDateTimeEs = (date: DateTime): string =>
+  date.setLocale('es').toFormat("cccc d 'de' LLLL yyyy, hh:mm a");
+
+const formatTimeEs = (date: DateTime): string => date.setLocale('es').toFormat('hh:mm a');
+
 const toneFromRating = (rating: number): 'positive' | 'neutral' | 'negative' => {
   if (rating >= 4) return 'positive';
   if (rating <= 2) return 'negative';
@@ -775,8 +780,8 @@ export const createEventTool: AITool = {
       const localTime = eventDate.setZone(EVENT_TIMEZONE);
       const localEnd = timeEndUtc.setZone(EVENT_TIMEZONE);
 
-      const localTimeDescription = localTime.toFormat('cccc d LLL yyyy, hh:mm a');
-      const localEndDescription = localEnd.toFormat('cccc d LLL yyyy, hh:mm a');
+      const localTimeDescription = formatDateTimeEs(localTime);
+      const localEndDescription = formatDateTimeEs(localEnd);
 
       return {
         success: true,
@@ -922,8 +927,8 @@ export const getUpcomingEventsTool: AITool = {
         event.timeBegin.toISOString();
 
       const localDescription = localTime.isValid
-        ? localTime.toFormat('cccc d LLL yyyy, hh:mm a')
-        : DateTime.fromJSDate(event.timeBegin).toFormat('cccc d LLL yyyy, hh:mm a');
+        ? formatDateTimeEs(localTime)
+        : formatDateTimeEs(DateTime.fromJSDate(event.timeBegin).setZone(EVENT_TIMEZONE));
 
       const timeEndIso =
         (localEnd && localEnd.isValid && localEnd.toISO()) ||
@@ -931,11 +936,9 @@ export const getUpcomingEventsTool: AITool = {
 
       const localEndDescription =
         localEnd && localEnd.isValid
-          ? localEnd.toFormat('hh:mm a')
+          ? formatTimeEs(localEnd)
           : event.timeEnd
-            ? DateTime.fromJSDate(event.timeEnd)
-                .setZone(EVENT_TIMEZONE)
-                .toFormat('hh:mm a')
+            ? formatTimeEs(DateTime.fromJSDate(event.timeEnd).setZone(EVENT_TIMEZONE))
             : null;
 
       const priceNumbers =
@@ -1365,8 +1368,8 @@ export const getCommunityEventsTool: AITool = {
         description: event.description,
         timeBegin: event.timeBegin.toISOString(),
         timeEnd: event.timeEnd ? event.timeEnd.toISOString() : null,
-        localTimeDescription: localBegin.toFormat('cccc d LLL yyyy, hh:mm a'),
-        localEndDescription: localEnd ? localEnd.toFormat('cccc d LLL yyyy, hh:mm a') : null,
+        localTimeDescription: formatDateTimeEs(localBegin),
+        localEndDescription: localEnd ? formatDateTimeEs(localEnd) : null,
         status: event.status,
         visibility: event.visibility,
         place: event.place
@@ -1521,7 +1524,7 @@ export const joinCommunityEventTool: AITool = {
     });
 
     const localTime = DateTime.fromJSDate(event.timeBegin).setZone(EVENT_TIMEZONE);
-    const localTimeDescription = localTime.toFormat('cccc d LLL yyyy, hh:mm a');
+    const localTimeDescription = formatDateTimeEs(localTime);
 
     if (existingAttendance) {
       return {
