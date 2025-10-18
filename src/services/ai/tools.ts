@@ -338,14 +338,14 @@ const generatePlaceSummary = (place: {
 export const getAvailablePlacesTool: AITool = {
   name: 'get_available_places',
   description:
-    'Get a list of available places/venues where events can be created. Si el perfil ya tiene ciudad, úsala automáticamente; pregunta por otra sólo si falta o el usuario lo pide. Devuelve varias opciones para que el usuario elija.',
+    'Obtiene lugares/venues disponibles para crear eventos. IMPORTANTE: Si el usuario tiene ciudad registrada en su perfil, DEBES pasarla aquí automáticamente en el parámetro "city". Solo pregunta por ciudad si el usuario NO tiene ciudad registrada o menciona explícitamente otra ciudad.',
   parameters: {
     type: 'object',
     properties: {
       city: {
         type: 'string',
         description:
-          'Ciudad donde buscar lugares. Si no se envía, la herramienta usará la ciudad registrada del usuario.',
+          'Ciudad donde buscar lugares. COMPORTAMIENTO: (1) Si usuario tiene ciudad registrada → úsala automáticamente, (2) Si NO tiene ciudad registrada → la herramienta lanzará error, (3) Si usuario menciona otra ciudad → usa esa. Ejemplos: "Caracas", "Valencia", "Maracaibo"',
       },
       type: {
         type: 'string',
@@ -385,7 +385,7 @@ export const getAvailablePlacesTool: AITool = {
     }
 
     if (!effectiveCity) {
-      throw new Error('CITY_REQUIRED: El perfil no tiene ciudad, pregunta al usuario en qué ciudad desea el plan.');
+      throw new Error('ERROR CRÍTICO: No se puede buscar lugares sin ciudad. El usuario NO tiene ciudad registrada en su perfil y NO proporcionaste el parámetro "city". ACCIÓN REQUERIDA: Pregunta al usuario "¿En qué ciudad quieres el evento?" y luego vuelve a llamar get_available_places con el parámetro city.');
     }
 
     const where: any = {
