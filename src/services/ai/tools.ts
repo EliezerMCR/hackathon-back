@@ -1565,15 +1565,15 @@ export const joinCommunityEventTool: AITool = {
 export const updateEventTool: AITool = {
   name: 'update_event',
   description:
-    'Permite modificar un evento del usuario (nombre, fecha, descripción). Úsalo cuando quiera ajustar detalles de algo ya creado.',
+    'Permite modificar un evento organizado por el usuario (nombre, fecha, descripción). Antes de llamarla, obtén el ID real del evento usando get_upcoming_events o get_joined_events. Nunca solicites el ID directamente al usuario.',
   parameters: {
     type: 'object',
     properties: {
       eventId: {
         type: 'number',
-        description: 'REQUIRED: ID del evento que deseas modificar.',
+        description: 'ID del evento que se desea modificar. Obténlo primero con get_upcoming_events.',
       },
-      eventName: {
+      newName: {
         type: 'string',
         description: 'Nuevo nombre del evento (opcional).',
       },
@@ -1590,20 +1590,25 @@ export const updateEventTool: AITool = {
     required: ['eventId'],
   },
   handler: async (
-    params: { eventId: number; eventName?: string; description?: string; date?: string },
+    params: {
+      eventId: number;
+      newName?: string;
+      description?: string;
+      date?: string;
+    },
     userId: number
   ): Promise<EventUpdateResult> => {
-    const { eventId, eventName, description, date } = params;
+    const { eventId, newName, description, date } = params;
 
     if (!eventId || Number.isNaN(eventId)) {
       return {
         success: false,
-        reason: 'INVALID_EVENT_ID',
-        message: 'Debes indicar un ID de evento válido para modificarlo.',
+        reason: 'EVENT_ID_REQUIRED',
+        message: 'Necesito el ID del evento que deseas modificar. Primero consulta tus eventos programados.',
       };
     }
 
-    if (!eventName && !description && !date) {
+    if (!newName && typeof description !== 'string' && !date) {
       return {
         success: false,
         reason: 'NO_UPDATES_PROVIDED',
@@ -1628,15 +1633,15 @@ export const updateEventTool: AITool = {
       return {
         success: false,
         reason: 'EVENT_NOT_FOUND',
-        message: 'No encontré un evento tuyo con ese ID.',
+        message: 'No encontré un evento tuyo con ese ID. Verifica el identificador o consulta tu lista de eventos.',
       };
     }
 
     const data: any = {};
     let parsedDate: DateTime | undefined;
 
-    if (eventName) {
-      data.name = eventName;
+    if (newName) {
+      data.name = newName;
     }
 
     if (typeof description === 'string') {
@@ -1687,7 +1692,7 @@ export const updateEventTool: AITool = {
 
     try {
       const updated = await prisma.event.update({
-        where: { id: eventId },
+        where: { id: existing.id },
         data,
         include: {
           place: {
