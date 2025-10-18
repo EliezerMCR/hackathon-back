@@ -11,10 +11,16 @@ import dotenv from 'dotenv';
 // Import routes
 import userRoutes from './routes/users';
 import authRoutes from './routes/auth';
+import placeRoutes from './routes/places';
+import productRoutes from './routes/products';
+import eventRoutes from './routes/events';
 import communityRoutes from './routes/communities';
 import requestRoutes from './routes/requests';
 import invitationRoutes from './routes/invitations';
 import ticketRoutes from './routes/tickets';
+import promotionRoutes from './routes/promotions';
+import adRoutes from './routes/ads';
+import reviewRoutes from './routes/reviews';
 import { authenticate, authorize } from './middlewares/auth';
 import { errorHandler } from './middlewares/errorHandler';
 
@@ -50,10 +56,16 @@ app.get('/api', (req, res) => {
 // API Routes
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/places', placeRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/events', eventRoutes);
 app.use('/api/communities', communityRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/invitations', invitationRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/promotions', promotionRoutes);
+app.use('/api/ads', adRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Protected route example
 app.get('/api/protected', authenticate, authorize(['ADMIN']), (req, res) => {
