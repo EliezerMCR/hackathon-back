@@ -3,6 +3,7 @@ import { EventVisibility, ROLE } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middlewares/auth';
+import { processImages } from '../middlewares/imageProcessor';
 import { ensureCanManageEvent } from '../utils/authorization';
 
 const router = Router();
@@ -285,7 +286,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
 });
 
 // POST /api/events - Create new event
-router.post('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticate, processImages(['image']), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const validation = createEventSchema.safeParse(req.body);
 
@@ -377,7 +378,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
 });
 
 // PUT /api/events/:id - Update event
-router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put('/:id', authenticate, processImages(['image']), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const eventId = parseInt(id, 10);
