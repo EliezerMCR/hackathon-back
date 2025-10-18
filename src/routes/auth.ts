@@ -27,7 +27,6 @@ const verifyDocument = async ({
   fullName: string;
   documentNumber: number;
 }): Promise<DocumentVerificationResult> => {
-  console.log('--- [VERIFY DOCUMENT] input:', { documentFrontImage: documentFrontImage?.slice?.(0, 30) + '...', fullName, documentNumber });
 
   let tempFilePath: string | undefined;
 
@@ -49,14 +48,11 @@ const verifyDocument = async ({
         documentNumber: documentNumber.toString(),
         mimeType: tempFile.mimeType,
       });
-      console.log('--- [VERIFY DOCUMENT] verification result:', verification);
     } catch (error) {
-      console.log('--- [VERIFY DOCUMENT] error in OCR:', error);
       throw new HTTP400Error('No se pudo procesar la cédula enviada.');
     }
 
     if (!verification.isValid) {
-      console.log('--- [VERIFY DOCUMENT] verification failed:', verification);
       throw new HTTP400Error('La información de la cédula no coincide con los datos del usuario.');
     }
 
@@ -64,15 +60,12 @@ const verifyDocument = async ({
   } finally {
     if (tempFilePath) {
       await fs.promises.unlink(tempFilePath).catch(() => undefined);
-      console.log('--- [VERIFY DOCUMENT] temp file deleted:', tempFilePath);
     }
   }
 };
 
 router.post('/signup', upload.single('documentFrontImage'), async (req, res, next) => {
   try {
-    console.log('--- [SIGNUP] req.body:', req.body);
-    console.log('--- [SIGNUP] req.file:', req.file);
 
     if (!req.file) {
       throw new HTTP400Error('La imagen frontal de la cédula es obligatoria.');
@@ -82,8 +75,6 @@ router.post('/signup', upload.single('documentFrontImage'), async (req, res, nex
       ...req.body,
       documentFrontImage: req.file.buffer.toString('base64'),
     });
-
-    console.log('--- [SIGNUP] parsedBody:', parsedBody);
 
     const {
       name,
@@ -125,7 +116,6 @@ router.post('/signup', upload.single('documentFrontImage'), async (req, res, nex
       documentVerified: verification.isValid,
     });
   } catch (error: any) {
-    console.log('--- [SIGNUP] error:', error);
     if (error.code === 'P2002') {
       return next(new HTTP409Error('User already exists'));
     }
