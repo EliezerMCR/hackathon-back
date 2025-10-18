@@ -60,7 +60,7 @@ router.delete('/me', authenticate, async (req: any, res: any, next) => {
   }
 });
 
-router.get('/', authenticate, authorize(['ADMIN']), async (req: any, res: any, next) => {
+router.get('/', authenticate, async (req: any, res: any, next) => {
   try {
     const users = await prisma.user.findMany();
     res.json(users);
@@ -69,7 +69,7 @@ router.get('/', authenticate, authorize(['ADMIN']), async (req: any, res: any, n
   }
 });
 
-router.get('/:id', authenticate, authorize(['ADMIN']), async (req: any, res: any, next) => {
+router.get('/:id', authenticate, async (req: any, res: any, next) => {
   try {
     const { id } = req.params;
     const userId = parseInt(id, 10);
@@ -92,7 +92,7 @@ router.get('/:id', authenticate, authorize(['ADMIN']), async (req: any, res: any
   }
 });
 
-router.put('/:id', authenticate, authorize(['ADMIN']), validate(updateUserSchema), async (req: any, res: any, next) => {
+router.put('/:id', authenticate, validate(updateUserSchema), async (req: any, res: any, next) => {
   try {
     const { id } = req.params;
     const user = await prisma.user.update({
@@ -112,7 +112,7 @@ router.put('/:id', authenticate, authorize(['ADMIN']), validate(updateUserSchema
   }
 });
 
-router.delete('/:id', authenticate, authorize(['ADMIN']), async (req: any, res: any, next) => {
+router.delete('/:id', authenticate, async (req: any, res: any, next) => {
   try {
     const { id } = req.params;
     await prisma.user.delete({
