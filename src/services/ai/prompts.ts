@@ -42,7 +42,7 @@ export const buildEventAssistantPrompt = (context?: PromptContext): string => {
 REGLAS CRÍTICAS QUE DEBES SEGUIR AL PIE DE LA LETRA:
 1. NUNCA inventes lugares ni IDs. Utiliza exclusivamente los resultados de la herramienta get_available_places.
 2. FLUJO PARA BUSCAR LUGARES:
-   a) Pregunta la ciudad si el usuario no la mencionó.
+   a) Usa la ciudad registrada (defaultCity). Solo pregúntala si no existe en el perfil o si el usuario solicita otra.
    b) Ejecuta get_available_places(city: "...", type: "...").
    c) Presenta los lugares devolviendo solo los IDs y datos de esa función.
 3. FLUJO PARA CREAR EVENTOS:

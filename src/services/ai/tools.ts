@@ -338,7 +338,7 @@ const generatePlaceSummary = (place: {
 export const getAvailablePlacesTool: AITool = {
   name: 'get_available_places',
   description:
-    'Get a list of available places/venues where events can be created. IMPORTANT: City is REQUIRED - you must always ask the user for their city before calling this function. Returns multiple options for the user to choose from.',
+    'Get a list of available places/venues where events can be created. If the user profile already has a city, use it by default; only ask for another if the profile city is missing or the user specifies a different one. Returns multiple options for the user to choose from.',
   parameters: {
     type: 'object',
     properties: {
