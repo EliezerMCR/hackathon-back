@@ -3,7 +3,7 @@ import { EventVisibility, ROLE } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middlewares/auth';
-import { ensureCanManageEvent, ensureCanManagePlace, ensureRole } from '../utils/authorization';
+import { ensureCanManageEvent } from '../utils/authorization';
 
 const router = Router();
 
@@ -296,10 +296,11 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
 
     const { placeId, communityId, timeBegin, timeEnd, visibility, ...eventData } = validation.data;
 
-    const actor = ensureRole(req.user, [ROLE.ADMIN, ROLE.MARKET]);
-    const organizerId = actor.userId;
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
-    // await ensureCanManagePlace(req.user, placeId);
+    const organizerId = req.user.userId;
 
     if (visibility === 'PUBLIC' && !communityId) {
       return res
