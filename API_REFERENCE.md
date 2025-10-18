@@ -16,6 +16,7 @@
 - [Promociones](#-promociones)
 - [Anuncios (Ads)](#-anuncios-ads)
 - [Reviews](#-reviews)
+- [Categorías](#-categorías)
 
 ---
 
@@ -1100,7 +1101,120 @@ Eliminar un review.
 
 ---
 
-## 🔒 Autenticación en Endpoints
+## � Categorías
+
+### GET /api/categories
+Obtener todas las categorías.
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": 1,
+    "name": "Tecnología",
+    "createdAt": "2025-01-20T10:00:00Z",
+    "createdBy": 1,
+    "creator": {
+      "id": 1,
+      "name": "Juan Carlos",
+      "lastName": "Administrador",
+      "email": "admin@hackathon.com",
+      "role": "ADMIN"
+    }
+  }
+]
+```
+
+---
+
+### GET /api/categories/:id
+Obtener una categoría específica.
+
+**Response:** `200 OK`
+
+---
+
+### POST /api/categories
+Crear una nueva categoría (solo ADMIN).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Body:**
+```json
+{
+  "name": "Arte"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "message": "Categoría creada exitosamente",
+  "category": {
+    "id": 9,
+    "name": "Arte",
+    "createdAt": "2025-01-20T15:30:00Z",
+    "createdBy": 1,
+    "creator": {
+      "id": 1,
+      "name": "Juan Carlos",
+      "lastName": "Administrador",
+      "email": "admin@hackathon.com",
+      "role": "ADMIN"
+    }
+  }
+}
+```
+
+---
+
+### PUT /api/categories/:id
+Actualizar una categoría (solo ADMIN).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Body:**
+```json
+{
+  "name": "Artes Plásticas"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Categoría actualizada exitosamente",
+  "category": { ... }
+}
+```
+
+---
+
+### DELETE /api/categories/:id
+Eliminar una categoría (solo ADMIN).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Categoría 'Arte' eliminada exitosamente",
+  "id": 9
+}
+```
+
+---
+
+## �🔒 Autenticación en Endpoints
 
 Algunos endpoints requieren autenticación. Incluye el token JWT en el header:
 

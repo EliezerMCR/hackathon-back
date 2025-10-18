@@ -1,5 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { config } from 'dotenv';
+import bcrypt from 'bcryptjs';
 
 // Load environment variables
 config();
@@ -29,187 +30,167 @@ async function main() {
 
   // ==================== USERS ====================
   console.log('👤 Creating users...');
-  
-  const users = await Promise.all([
-    // Admin user
-    prisma.user.create({
-      data: {
-        name: 'Juan Carlos',
-        lastName: 'Administrador',
-        email: 'admin@hackathon.com',
-        password: 'admin123', // Remember to hash in production!
-        birthDate: new Date('1990-01-15'),
-        city: 'Caracas',
-        country: 'Venezuela',
-        gender: 'MAN',
-        role: 'ADMIN',
-        membership: 'VIP',
-        documentId: 12345678,
-        image: 'https://i.pravatar.cc/150?img=12',
-      },
-    }),
-    
-    // Market users
-    prisma.user.create({
-      data: {
-        name: 'María',
-        lastName: 'Promotora',
-        email: 'maria@market.com',
-        password: 'market123',
-        birthDate: new Date('1995-03-20'),
-        city: 'Maracaibo',
-        country: 'Venezuela',
-        gender: 'WOMAN',
-        role: 'MARKET',
-        membership: 'VIP',
-        documentId: 23456789,
-        image: 'https://i.pravatar.cc/150?img=5',
-      },
-    }),
-    
-    // Client users
-    prisma.user.create({
-      data: {
-        name: 'Pedro',
-        lastName: 'García',
-        email: 'pedro@gmail.com',
-        password: 'client123',
-        birthDate: new Date('1998-07-10'),
-        city: 'Caracas',
-        country: 'Venezuela',
-        gender: 'MAN',
-        role: 'CLIENT',
-        membership: 'NORMAL',
-        documentId: 34567890,
-        image: 'https://i.pravatar.cc/150?img=33',
-      },
-    }),
-    
-    prisma.user.create({
-      data: {
-        name: 'Ana',
-        lastName: 'Martínez',
-        email: 'ana@gmail.com',
-        password: 'client123',
-        birthDate: new Date('2000-11-25'),
-        city: 'Valencia',
-        country: 'Venezuela',
-        gender: 'WOMAN',
-        role: 'CLIENT',
-        membership: 'VIP',
-        documentId: 45678901,
-        image: 'https://i.pravatar.cc/150?img=9',
-      },
-    }),
-    
-    prisma.user.create({
-      data: {
-        name: 'Luis',
-        lastName: 'Rodríguez',
-        email: 'luis@gmail.com',
-        password: 'client123',
-        birthDate: new Date('1997-05-30'),
-        city: 'Barquisimeto',
-        country: 'Venezuela',
-        gender: 'MAN',
-        role: 'CLIENT',
-        membership: 'NORMAL',
-        documentId: 56789012,
-        image: 'https://i.pravatar.cc/150?img=15',
-      },
-    }),
-    
-    prisma.user.create({
-      data: {
-        name: 'Sofia',
-        lastName: 'López',
-        email: 'sofia@gmail.com',
-        password: 'client123',
-        birthDate: new Date('1999-09-12'),
-        city: 'Caracas',
-        country: 'Venezuela',
-        gender: 'WOMAN',
-        role: 'CLIENT',
-        membership: 'VIP',
-        documentId: 67890123,
-        image: 'https://i.pravatar.cc/150?img=20',
-      },
-    }),
-    
-    prisma.user.create({
-      data: {
-        name: 'Carlos',
-        lastName: 'Fernández',
-        email: 'carlos@gmail.com',
-        password: 'client123',
-        birthDate: new Date('1996-04-18'),
-        city: 'Mérida',
-        country: 'Venezuela',
-        gender: 'MAN',
-        role: 'CLIENT',
-        membership: 'NORMAL',
-        documentId: 78901234,
-        image: 'https://i.pravatar.cc/150?img=25',
-      },
-    }),
-    
-    prisma.user.create({
-      data: {
-        name: 'Roberto',
-        lastName: 'Morales',
-        email: 'roberto@market.com',
-        password: 'market123',
-        birthDate: new Date('1992-08-22'),
-        city: 'Caracas',
-        country: 'Venezuela',
-        gender: 'MAN',
-        role: 'MARKET',
-        membership: 'VIP',
-        documentId: 89012345,
-        image: 'https://i.pravatar.cc/150?img=30',
-      },
-    }),
-    
-    prisma.user.create({
-      data: {
-        name: 'Valentina',
-        lastName: 'Torres',
-        email: 'valentina@gmail.com',
-        password: 'client123',
-        birthDate: new Date('2001-12-05'),
-        city: 'Maracay',
-        country: 'Venezuela',
-        gender: 'WOMAN',
-        role: 'CLIENT',
-        membership: 'NORMAL',
-        documentId: 90123456,
-        image: 'https://i.pravatar.cc/150?img=35',
-      },
-    }),
-    
-    prisma.user.create({
-      data: {
-        name: 'Diego',
-        lastName: 'Ramírez',
-        email: 'diego@gmail.com',
-        password: 'client123',
-        birthDate: new Date('1994-06-28'),
-        city: 'Caracas',
-        country: 'Venezuela',
-        gender: 'MAN',
-        role: 'CLIENT',
-        membership: 'VIP',
-        documentId: 11223344,
-        image: 'https://i.pravatar.cc/150?img=40',
-      },
-    }),
-  ]);
-  
+
+  const userData: Array<Omit<Prisma.UserCreateInput, 'password'> & { password: string }> = [
+    {
+      name: 'Juan Carlos',
+      lastName: 'Administrador',
+      email: 'admin@hackathon.com',
+      password: 'admin123',
+      birthDate: new Date('1990-01-15'),
+      city: 'Caracas',
+      country: 'Venezuela',
+      gender: 'MAN',
+      role: 'ADMIN',
+      membership: 'VIP',
+      documentId: 12345678,
+      image: 'https://i.pravatar.cc/150?img=12',
+    },
+    {
+      name: 'María',
+      lastName: 'Promotora',
+      email: 'maria@market.com',
+      password: 'market123',
+      birthDate: new Date('1995-03-20'),
+      city: 'Maracaibo',
+      country: 'Venezuela',
+      gender: 'WOMAN',
+      role: 'MARKET',
+      membership: 'VIP',
+      documentId: 23456789,
+      image: 'https://i.pravatar.cc/150?img=5',
+    },
+    {
+      name: 'Pedro',
+      lastName: 'García',
+      email: 'pedro@gmail.com',
+      password: 'client123',
+      birthDate: new Date('1998-07-10'),
+      city: 'Caracas',
+      country: 'Venezuela',
+      gender: 'MAN',
+      role: 'CLIENT',
+      membership: 'NORMAL',
+      documentId: 34567890,
+      image: 'https://i.pravatar.cc/150?img=33',
+    },
+    {
+      name: 'Ana',
+      lastName: 'Martínez',
+      email: 'ana@gmail.com',
+      password: 'client123',
+      birthDate: new Date('2000-11-25'),
+      city: 'Valencia',
+      country: 'Venezuela',
+      gender: 'WOMAN',
+      role: 'CLIENT',
+      membership: 'VIP',
+      documentId: 45678901,
+      image: 'https://i.pravatar.cc/150?img=9',
+    },
+    {
+      name: 'Luis',
+      lastName: 'Rodríguez',
+      email: 'luis@gmail.com',
+      password: 'client123',
+      birthDate: new Date('1997-05-30'),
+      city: 'Barquisimeto',
+      country: 'Venezuela',
+      gender: 'MAN',
+      role: 'CLIENT',
+      membership: 'NORMAL',
+      documentId: 56789012,
+      image: 'https://i.pravatar.cc/150?img=15',
+    },
+    {
+      name: 'Sofia',
+      lastName: 'López',
+      email: 'sofia@gmail.com',
+      password: 'client123',
+      birthDate: new Date('1999-09-12'),
+      city: 'Caracas',
+      country: 'Venezuela',
+      gender: 'WOMAN',
+      role: 'CLIENT',
+      membership: 'VIP',
+      documentId: 67890123,
+      image: 'https://i.pravatar.cc/150?img=20',
+    },
+    {
+      name: 'Carlos',
+      lastName: 'Fernández',
+      email: 'carlos@gmail.com',
+      password: 'client123',
+      birthDate: new Date('1996-04-18'),
+      city: 'Mérida',
+      country: 'Venezuela',
+      gender: 'MAN',
+      role: 'CLIENT',
+      membership: 'NORMAL',
+      documentId: 78901234,
+      image: 'https://i.pravatar.cc/150?img=25',
+    },
+    {
+      name: 'Roberto',
+      lastName: 'Morales',
+      email: 'roberto@market.com',
+      password: 'market123',
+      birthDate: new Date('1992-08-22'),
+      city: 'Caracas',
+      country: 'Venezuela',
+      gender: 'MAN',
+      role: 'MARKET',
+      membership: 'VIP',
+      documentId: 89012345,
+      image: 'https://i.pravatar.cc/150?img=30',
+    },
+    {
+      name: 'Valentina',
+      lastName: 'Torres',
+      email: 'valentina@gmail.com',
+      password: 'client123',
+      birthDate: new Date('2001-12-05'),
+      city: 'Maracay',
+      country: 'Venezuela',
+      gender: 'WOMAN',
+      role: 'CLIENT',
+      membership: 'NORMAL',
+      documentId: 90123456,
+      image: 'https://i.pravatar.cc/150?img=35',
+    },
+    {
+      name: 'Diego',
+      lastName: 'Ramírez',
+      email: 'diego@gmail.com',
+      password: 'client123',
+      birthDate: new Date('1994-06-28'),
+      city: 'Caracas',
+      country: 'Venezuela',
+      gender: 'MAN',
+      role: 'CLIENT',
+      membership: 'VIP',
+      documentId: 11223344,
+      image: 'https://i.pravatar.cc/150?img=40',
+    },
+  ];
+
+  const users = await Promise.all(
+    userData.map(async (user) => {
+      const hashedPassword = await bcrypt.hash(user.password, 10);
+      return prisma.user.create({
+        data: {
+          ...user,
+          password: hashedPassword,
+        },
+      });
+    })
+  );
+
   console.log(`✅ Created ${users.length} users\n`);
 
   // ==================== PLACES ====================
   console.log('📍 Creating places...');
-  
+
   const places = await Promise.all([
     prisma.place.create({
       data: {
@@ -226,7 +207,7 @@ async function main() {
         status: 'ACCEPTED',
       },
     }),
-    
+
     prisma.place.create({
       data: {
         name: 'Cervecería Tovar',
@@ -243,7 +224,7 @@ async function main() {
         status: 'ACCEPTED',
       },
     }),
-    
+
     prisma.place.create({
       data: {
         name: 'Centro Cultural BOD',
@@ -258,7 +239,7 @@ async function main() {
         status: 'ACCEPTED',
       },
     }),
-    
+
     prisma.place.create({
       data: {
         name: 'Club 360° Roof',
@@ -276,7 +257,7 @@ async function main() {
         status: 'ACCEPTED',
       },
     }),
-    
+
     prisma.place.create({
       data: {
         name: 'Restaurante Urrutia',
@@ -292,7 +273,7 @@ async function main() {
         status: 'ACCEPTED',
       },
     }),
-    
+
     prisma.place.create({
       data: {
         name: 'Teatro Teresa Carreño',
@@ -307,7 +288,7 @@ async function main() {
         status: 'ACCEPTED',
       },
     }),
-    
+
     prisma.place.create({
       data: {
         name: 'Parque El Ávila',
@@ -322,7 +303,7 @@ async function main() {
         status: 'ACCEPTED',
       },
     }),
-    
+
     prisma.place.create({
       data: {
         name: 'Bar La Casa Bistró',
@@ -339,12 +320,12 @@ async function main() {
       },
     }),
   ]);
-  
+
   console.log(`✅ Created ${places.length} places\n`);
 
   // ==================== PRODUCTS ====================
   console.log('🍺 Creating products...');
-  
+
   const products = await Promise.all([
     // WeWork products
     prisma.product.create({
@@ -371,7 +352,7 @@ async function main() {
         placeId: places[0].id,
       },
     }),
-    
+
     // Cervecería Tovar products
     prisma.product.create({
       data: {
@@ -405,7 +386,7 @@ async function main() {
         placeId: places[1].id,
       },
     }),
-    
+
     // Centro Cultural products
     prisma.product.create({
       data: {
@@ -423,7 +404,7 @@ async function main() {
         placeId: places[2].id,
       },
     }),
-    
+
     // Club Amadeus products
     prisma.product.create({
       data: {
@@ -449,7 +430,7 @@ async function main() {
         placeId: places[3].id,
       },
     }),
-    
+
     // Restaurante Urrutia products
     prisma.product.create({
       data: {
@@ -475,7 +456,7 @@ async function main() {
         placeId: places[4].id,
       },
     }),
-    
+
     // Bar La Casa Bistró products
     prisma.product.create({
       data: {
@@ -502,37 +483,37 @@ async function main() {
       },
     }),
   ]);
-  
+
   console.log(`✅ Created ${products.length} products\n`);
 
   // ==================== COMMUNITIES ====================
   console.log('🏘️  Creating communities...');
-  
+
   const communities = await Promise.all([
     prisma.community.create({
       data: {
         name: 'Tech Caracas Community',
       },
     }),
-    
+
     prisma.community.create({
       data: {
         name: 'Startup Venezuela',
       },
     }),
-    
+
     prisma.community.create({
       data: {
         name: 'Developers Circle VE',
       },
     }),
   ]);
-  
+
   console.log(`✅ Created ${communities.length} communities\n`);
 
   // ==================== COMMUNITY MEMBERS ====================
   console.log('👥 Adding community members...');
-  
+
   const members = await Promise.all([
     // Tech Lima Community
     prisma.community_Member.create({
@@ -556,7 +537,7 @@ async function main() {
         role: 'CLIENT',
       },
     }),
-    
+
     // Startup Perú
     prisma.community_Member.create({
       data: {
@@ -579,7 +560,7 @@ async function main() {
         role: 'CLIENT',
       },
     }),
-    
+
     // Developers Circle
     prisma.community_Member.create({
       data: {
@@ -603,12 +584,12 @@ async function main() {
       },
     }),
   ]);
-  
+
   console.log(`✅ Added ${members.length} community members\n`);
 
   // ==================== EVENTS ====================
   console.log('🎉 Creating events...');
-  
+
   const events = await Promise.all([
     prisma.event.create({
       data: {
@@ -624,7 +605,7 @@ async function main() {
         externalUrl: 'https://meetup.com/javascript-caracas',
       },
     }),
-    
+
     prisma.event.create({
       data: {
         name: 'Startup Weekend Caracas',
@@ -638,7 +619,7 @@ async function main() {
         status: 'proximo',
       },
     }),
-    
+
     prisma.event.create({
       data: {
         name: 'After Office Tech',
@@ -651,7 +632,7 @@ async function main() {
         status: 'proximo',
       },
     }),
-    
+
     prisma.event.create({
       data: {
         name: 'Noche Electrónica - DJ Set',
@@ -666,7 +647,7 @@ async function main() {
         externalUrl: 'https://ticketmundo.com/noche-electronica',
       },
     }),
-    
+
     prisma.event.create({
       data: {
         name: 'Festival Gastronómico Venezuela',
@@ -679,7 +660,7 @@ async function main() {
         status: 'proximo',
       },
     }),
-    
+
     prisma.event.create({
       data: {
         name: 'Obra de Teatro: Romeo y Julieta',
@@ -692,7 +673,7 @@ async function main() {
         status: 'proximo',
       },
     }),
-    
+
     prisma.event.create({
       data: {
         name: 'Hackathon Venezuela 2025',
@@ -708,12 +689,12 @@ async function main() {
       },
     }),
   ]);
-  
+
   console.log(`✅ Created ${events.length} events\n`);
 
   // ==================== TICKETS ====================
   console.log('🎫 Creating tickets...');
-  
+
   const tickets = await Promise.all([
     // Meetup JavaScript - General
     prisma.ticket.create({
@@ -725,7 +706,7 @@ async function main() {
         description: 'Entrada general gratuita',
       },
     }),
-    
+
     // Meetup JavaScript - VIP
     prisma.ticket.create({
       data: {
@@ -736,7 +717,7 @@ async function main() {
         description: 'Acceso VIP con networking exclusivo',
       },
     }),
-    
+
     // Startup Weekend - Early Bird
     prisma.ticket.create({
       data: {
@@ -747,7 +728,7 @@ async function main() {
         description: 'Precio especial para los primeros inscritos',
       },
     }),
-    
+
     // Startup Weekend - Regular
     prisma.ticket.create({
       data: {
@@ -758,7 +739,7 @@ async function main() {
         description: 'Entrada regular al evento',
       },
     }),
-    
+
     // After Office - General
     prisma.ticket.create({
       data: {
@@ -769,7 +750,7 @@ async function main() {
         description: 'Incluye 2 cervezas artesanales',
       },
     }),
-    
+
     // Noche Electrónica - General
     prisma.ticket.create({
       data: {
@@ -780,7 +761,7 @@ async function main() {
         description: 'Entrada general a la pista de baile',
       },
     }),
-    
+
     // Noche Electrónica - VIP
     prisma.ticket.create({
       data: {
@@ -791,7 +772,7 @@ async function main() {
         description: 'Área VIP con mesa reservada y botella',
       },
     }),
-    
+
     // Festival Gastronómico - Entrada
     prisma.ticket.create({
       data: {
@@ -802,7 +783,7 @@ async function main() {
         description: 'Entrada al festival',
       },
     }),
-    
+
     // Obra de Teatro - Platea
     prisma.ticket.create({
       data: {
@@ -813,7 +794,7 @@ async function main() {
         description: 'Asientos en platea',
       },
     }),
-    
+
     // Obra de Teatro - Balcón
     prisma.ticket.create({
       data: {
@@ -824,7 +805,7 @@ async function main() {
         description: 'Asientos en balcón',
       },
     }),
-    
+
     // Hackathon - Competidor
     prisma.ticket.create({
       data: {
@@ -835,7 +816,7 @@ async function main() {
         description: 'Entrada como competidor del hackathon',
       },
     }),
-    
+
     // Hackathon - Espectador
     prisma.ticket.create({
       data: {
@@ -847,12 +828,12 @@ async function main() {
       },
     }),
   ]);
-  
+
   console.log(`✅ Created ${tickets.length} tickets\n`);
 
   // ==================== BOUGHT TICKETS ====================
   console.log('💳 Creating bought tickets...');
-  
+
   const boughtTickets = await Promise.all([
     prisma.bought_Ticket.create({
       data: {
@@ -861,7 +842,7 @@ async function main() {
         price: tickets[0].price,
       },
     }),
-    
+
     prisma.bought_Ticket.create({
       data: {
         userId: users[3].id, // Ana
@@ -869,7 +850,7 @@ async function main() {
         price: tickets[1].price,
       },
     }),
-    
+
     prisma.bought_Ticket.create({
       data: {
         userId: users[4].id, // Luis
@@ -877,7 +858,7 @@ async function main() {
         price: tickets[2].price,
       },
     }),
-    
+
     prisma.bought_Ticket.create({
       data: {
         userId: users[5].id, // Sofia
@@ -885,7 +866,7 @@ async function main() {
         price: tickets[5].price,
       },
     }),
-    
+
     prisma.bought_Ticket.create({
       data: {
         userId: users[6].id, // Carlos
@@ -893,7 +874,7 @@ async function main() {
         price: tickets[6].price,
       },
     }),
-    
+
     prisma.bought_Ticket.create({
       data: {
         userId: users[9].id, // Diego
@@ -901,7 +882,7 @@ async function main() {
         price: tickets[8].price,
       },
     }),
-    
+
     prisma.bought_Ticket.create({
       data: {
         userId: users[8].id, // Valentina
@@ -910,7 +891,7 @@ async function main() {
       },
     }),
   ]);
-  
+
   // Update ticket quantities
   await prisma.ticket.update({
     where: { id: tickets[0].id },
@@ -940,12 +921,12 @@ async function main() {
     where: { id: tickets[8].id },
     data: { quantity: { decrement: 1 } },
   });
-  
+
   console.log(`✅ Created ${boughtTickets.length} bought tickets\n`);
 
   // ==================== REQUESTS ====================
   console.log('📋 Creating requests...');
-  
+
   const requests = await Promise.all([
     // Pending request
     prisma.request.create({
@@ -955,7 +936,7 @@ async function main() {
         status: 'PENDING',
       },
     }),
-    
+
     // Accepted request
     prisma.request.create({
       data: {
@@ -965,7 +946,7 @@ async function main() {
         acceptedById: users[0].id,
       },
     }),
-    
+
     prisma.request.create({
       data: {
         fromId: users[8].id, // Valentina
@@ -973,7 +954,7 @@ async function main() {
         status: 'PENDING',
       },
     }),
-    
+
     prisma.request.create({
       data: {
         fromId: users[5].id, // Sofia
@@ -982,7 +963,7 @@ async function main() {
         acceptedById: users[0].id,
       },
     }),
-    
+
     prisma.request.create({
       data: {
         fromId: users[2].id, // Pedro
@@ -992,12 +973,12 @@ async function main() {
       },
     }),
   ]);
-  
+
   console.log(`✅ Created ${requests.length} requests\n`);
 
   // ==================== INVITATIONS ====================
   console.log('💌 Creating invitations...');
-  
+
   const invitations = await Promise.all([
     prisma.invitation.create({
       data: {
@@ -1009,7 +990,7 @@ async function main() {
         invitationDate: new Date('2025-02-15T19:00:00'),
       },
     }),
-    
+
     prisma.invitation.create({
       data: {
         fromId: users[2].id, // Pedro invites Ana
@@ -1020,7 +1001,7 @@ async function main() {
         invitationDate: new Date('2025-02-01T19:00:00'),
       },
     }),
-    
+
     prisma.invitation.create({
       data: {
         fromId: users[5].id, // Sofia invites Carlos
@@ -1031,7 +1012,7 @@ async function main() {
         invitationDate: new Date('2025-02-20T23:00:00'),
       },
     }),
-    
+
     prisma.invitation.create({
       data: {
         fromId: users[1].id, // María invites Diego
@@ -1042,7 +1023,7 @@ async function main() {
         invitationDate: new Date('2025-03-15T12:00:00'),
       },
     }),
-    
+
     prisma.invitation.create({
       data: {
         fromId: users[9].id, // Diego invites Valentina
@@ -1053,7 +1034,7 @@ async function main() {
         invitationDate: new Date('2025-02-25T20:00:00'),
       },
     }),
-    
+
     prisma.invitation.create({
       data: {
         fromId: users[0].id, // Admin invites multiple users to Hackathon
@@ -1065,12 +1046,12 @@ async function main() {
       },
     }),
   ]);
-  
+
   console.log(`✅ Created ${invitations.length} invitations\n`);
 
   // ==================== REVIEWS ====================
   console.log('⭐ Creating reviews...');
-  
+
   const reviews = await Promise.all([
     prisma.review.create({
       data: {
@@ -1081,7 +1062,7 @@ async function main() {
         comment: 'Excelente evento, muy bien organizado!',
       },
     }),
-    
+
     prisma.review.create({
       data: {
         userId: users[3].id,
@@ -1090,7 +1071,7 @@ async function main() {
         comment: 'Buen ambiente, aunque un poco lleno',
       },
     }),
-    
+
     prisma.review.create({
       data: {
         userId: users[5].id,
@@ -1100,7 +1081,7 @@ async function main() {
         comment: '¡Increíble noche! Los DJs estuvieron espectaculares',
       },
     }),
-    
+
     prisma.review.create({
       data: {
         userId: users[6].id,
@@ -1109,7 +1090,7 @@ async function main() {
         comment: 'La mejor experiencia gastronómica de mi vida',
       },
     }),
-    
+
     prisma.review.create({
       data: {
         userId: users[4].id,
@@ -1118,7 +1099,7 @@ async function main() {
         comment: 'Las cervezas artesanales son de otro nivel',
       },
     }),
-    
+
     prisma.review.create({
       data: {
         userId: users[9].id,
@@ -1128,7 +1109,7 @@ async function main() {
         comment: 'Muy buena adaptación de la obra clásica',
       },
     }),
-    
+
     prisma.review.create({
       data: {
         userId: users[8].id,
@@ -1138,7 +1119,7 @@ async function main() {
         comment: 'Festival increíble, probé platos deliciosos',
       },
     }),
-    
+
     prisma.review.create({
       data: {
         userId: users[2].id,
@@ -1147,7 +1128,7 @@ async function main() {
         comment: 'Excelente espacio de coworking',
       },
     }),
-    
+
     prisma.review.create({
       data: {
         userId: users[3].id,
@@ -1157,12 +1138,12 @@ async function main() {
       },
     }),
   ]);
-  
+
   console.log(`✅ Created ${reviews.length} reviews\n`);
 
   // ==================== PROMOTIONS ====================
   console.log('🎁 Creating promotions...');
-  
+
   const promotions = await Promise.all([
     // Product promotions
     prisma.promotion.create({
@@ -1195,7 +1176,7 @@ async function main() {
         timeEnd: new Date('2025-03-15T23:59:59'),
       },
     }),
-    
+
     // Ticket promotions
     prisma.promotion.create({
       data: {
@@ -1218,12 +1199,12 @@ async function main() {
       },
     }),
   ]);
-  
+
   console.log(`✅ Created ${promotions.length} promotions\n`);
 
   // ==================== ADS ====================
   console.log('📢 Creating ads...');
-  
+
   const ads = await Promise.all([
     // Place ads
     prisma.ad.create({
@@ -1258,12 +1239,12 @@ async function main() {
       },
     }),
   ]);
-  
+
   console.log(`✅ Created ${ads.length} ads\n`);
 
   // ==================== REPORTS ====================
   console.log('🚨 Creating reports...');
-  
+
   const reports = await Promise.all([
     prisma.report.create({
       data: {
@@ -1280,8 +1261,64 @@ async function main() {
       },
     }),
   ]);
-  
+
   console.log(`✅ Created ${reports.length} reports\n`);
+
+  // ==================== CATEGORIES ====================
+  console.log('📁 Creating categories...');
+
+  const categories = await Promise.all([
+    prisma.category.create({
+      data: {
+        name: 'Tecnología',
+        createdBy: users[0].id, // Admin
+      },
+    }),
+    prisma.category.create({
+      data: {
+        name: 'Gastronomía',
+        createdBy: users[0].id,
+      },
+    }),
+    prisma.category.create({
+      data: {
+        name: 'Entretenimiento',
+        createdBy: users[0].id,
+      },
+    }),
+    prisma.category.create({
+      data: {
+        name: 'Deportes',
+        createdBy: users[0].id,
+      },
+    }),
+    prisma.category.create({
+      data: {
+        name: 'Cultura',
+        createdBy: users[0].id,
+      },
+    }),
+    prisma.category.create({
+      data: {
+        name: 'Educación',
+        createdBy: users[0].id,
+      },
+    }),
+    prisma.category.create({
+      data: {
+        name: 'Negocios',
+        createdBy: users[0].id,
+      },
+    }),
+    prisma.category.create({
+      data: {
+        name: 'Música',
+        createdBy: users[0].id,
+      },
+    }),
+  ]);
+
+  console.log(`✅ Created ${categories.length} categories\n`);
 
   // ==================== SUMMARY ====================
   console.log('📊 Seed Summary:');
@@ -1300,10 +1337,11 @@ async function main() {
   console.log(`🎁 Promotions: ${promotions.length}`);
   console.log(`📢 Ads: ${ads.length}`);
   console.log(`🚨 Reports: ${reports.length}`);
+  console.log(`📁 Categories: ${categories.length}`);
   console.log('================\n');
 
   console.log('✅ Seed completed successfully! 🎉\n');
-  
+
   console.log('📝 Test Credentials:');
   console.log('====================');
   console.log('Admin:  admin@hackathon.com  / admin123');
