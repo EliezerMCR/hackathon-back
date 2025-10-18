@@ -116,9 +116,7 @@ router.post('/forgot-password', validate(forgotPasswordSchema), async (req, res,
   const { email } = req.body;
 
   try {
-    console.log(email)
     const user = await prisma.user.findUnique({ where: { email } });
-    console.log(user);
 
     if (!user) {
       return res.status(200).json({ message: 'If a user with that email exists, a password reset code has been sent.' });

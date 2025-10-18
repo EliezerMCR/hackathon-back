@@ -2,9 +2,8 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticate, authorize } from '../middlewares/auth';
 import { validate } from '../middlewares/validation';
-import { createUserSchema, updateUserSchema } from '../schemas/userSchemas';
+import { updateUserSchema } from '../schemas/userSchemas';
 import { HTTP404Error, HTTP409Error } from '../utils/errors';
-import bcrypt from 'bcryptjs';
 
 const router = Router();
 
@@ -62,8 +61,25 @@ router.delete('/me', authenticate, async (req: any, res: any, next) => {
 
 router.get('/', authenticate, async (req: any, res: any, next) => {
   try {
-    const users = await prisma.user.findMany();
-    res.json(users);
+    const requesterRole = req.user?.role;
+    if (requesterRole === 'ADMIN') {
+      const users = await prisma.user.findMany();
+      return res.json(users);
+    }
+    // public view for non-admins
+    const publicUsers = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        lastName: true,
+        image: true,
+        city: true,
+        country: true,
+        membership: true,
+        createdAt: true,
+      },
+    });
+    res.json(publicUsers);
   } catch (error) {
     next(error);
   }
@@ -72,27 +88,45 @@ router.get('/', authenticate, async (req: any, res: any, next) => {
 router.get('/:id', authenticate, async (req: any, res: any, next) => {
   try {
     const { id } = req.params;
-    const userId = parseInt(id, 10);
-    
-    if (isNaN(userId)) {
+    const requestedId = parseInt(id, 10);
+
+    if (isNaN(requestedId)) {
       return res.status(400).json({ error: 'Invalid user ID' });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: parseInt(id) },
-    });
+    // If requester is ADMIN return full user, otherwise return public fields only
+    const requesterRole = req.user?.role;
 
-    if (!user) {
-      return next(new HTTP404Error('User not found'));
+    if (requesterRole === 'ADMIN') {
+      const user = await prisma.user.findUnique({ where: { id: requestedId } });
+      if (!user) return next(new HTTP404Error('User not found'));
+      return res.json(user);
     }
 
-    res.json(user);
+    // public view for non-admins
+    const publicUser = await prisma.user.findUnique({
+      where: { id: requestedId },
+      select: {
+        id: true,
+        name: true,
+        lastName: true,
+        image: true,
+        city: true,
+        country: true,
+        membership: true,
+        createdAt: true,
+      },
+    });
+
+    if (!publicUser) return next(new HTTP404Error('User not found'));
+
+    res.json(publicUser);
   } catch (error) {
     next(error);
   }
 });
 
-router.put('/:id', authenticate, validate(updateUserSchema), async (req: any, res: any, next) => {
+router.put('/:id', authenticate, authorize(['ADMIN']), validate(updateUserSchema), async (req: any, res: any, next) => {
   try {
     const { id } = req.params;
     const user = await prisma.user.update({
@@ -112,7 +146,7 @@ router.put('/:id', authenticate, validate(updateUserSchema), async (req: any, re
   }
 });
 
-router.delete('/:id', authenticate, async (req: any, res: any, next) => {
+router.delete('/:id', authenticate, authorize(['ADMIN']), async (req: any, res: any, next) => {
   try {
     const { id } = req.params;
     await prisma.user.delete({
