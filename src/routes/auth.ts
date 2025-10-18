@@ -5,7 +5,6 @@ import crypto from 'crypto';
 import fs from 'fs';
 import { Gender } from '@prisma/client';
 import { ZodError } from 'zod';
-import multer from 'multer';
 import { prisma } from '../lib/prisma';
 import { authenticate, authorize } from '../middlewares/auth';
 import { validate } from '../middlewares/validation';
@@ -16,16 +15,15 @@ import { saveBase64ImageToTempFile } from '../services/identity/helpers';
 import { verifyIdentityDocumentWithGemini, DocumentVerificationResult } from '../services/identity/documentVerification.service';
 
 const router = Router();
-const upload = multer();
 
 const verifyDocument = async ({
   documentFrontImage,
   fullName,
-  documentNumber,
+  expectedDocumentNumber,
 }: {
   documentFrontImage: string;
   fullName: string;
-  documentNumber: number;
+  expectedDocumentNumber?: number;
 }): Promise<DocumentVerificationResult> => {
 
   let tempFilePath: string | undefined;
@@ -45,7 +43,7 @@ const verifyDocument = async ({
       verification = await verifyIdentityDocumentWithGemini({
         filePath: tempFile.filePath,
         fullName,
-        documentNumber: documentNumber.toString(),
+        documentNumber: expectedDocumentNumber ? expectedDocumentNumber.toString() : undefined,
         mimeType: tempFile.mimeType,
       });
     } catch (error) {
@@ -56,6 +54,10 @@ const verifyDocument = async ({
       throw new HTTP400Error('La información de la cédula no coincide con los datos del usuario.');
     }
 
+    if (!verification.extractedDocumentNumberDigits) {
+      throw new HTTP400Error('No se pudo extraer el número de documento de la cédula proporcionada.');
+    }
+
     return verification;
   } finally {
     if (tempFilePath) {
@@ -64,17 +66,9 @@ const verifyDocument = async ({
   }
 };
 
-router.post('/signup', upload.single('documentFrontImage'), async (req, res, next) => {
+router.post('/signup', async (req, res, next) => {
   try {
-
-    if (!req.file) {
-      throw new HTTP400Error('La imagen frontal de la cédula es obligatoria.');
-    }
-
-    const parsedBody = signupSchema.parse({
-      ...req.body,
-      documentFrontImage: req.file.buffer.toString('base64'),
-    });
+    const parsedBody = signupSchema.parse(req.body);
 
     const {
       name,
@@ -85,15 +79,23 @@ router.post('/signup', upload.single('documentFrontImage'), async (req, res, nex
       gender,
       city,
       country,
-      documentId,
       documentFrontImage,
     } = parsedBody;
 
     const verification = await verifyDocument({
       documentFrontImage,
       fullName: `${name} ${lastName}`.trim(),
-      documentNumber: documentId,
     });
+
+    const documentDigits = verification.extractedDocumentNumberDigits;
+    if (!documentDigits) {
+      throw new HTTP400Error('No se pudo determinar el número de documento.');
+    }
+
+    const documentId = parseInt(documentDigits, 10);
+    if (Number.isNaN(documentId)) {
+      throw new HTTP400Error('El número de documento detectado es inválido.');
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     await prisma.user.create({
@@ -114,6 +116,7 @@ router.post('/signup', upload.single('documentFrontImage'), async (req, res, nex
     res.status(201).json({
       message: 'User created successfully',
       documentVerified: verification.isValid,
+      extractedDocumentNumber: verification.formattedExtractedDocumentNumber ?? documentDigits,
     });
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -133,17 +136,9 @@ router.post(
   '/signup-with-privilege',
   authenticate,
   authorize(['ADMIN']),
-  upload.single('documentFrontImage'),
   async (req, res, next) => {
     try {
-      if (!req.file) {
-        throw new HTTP400Error('La imagen frontal de la cédula es obligatoria.');
-      }
-
-      const parsedBody = signupWithPrivilegeSchema.parse({
-        ...req.body,
-        documentFrontImage: req.file.buffer.toString('base64'),
-      });
+      const parsedBody = signupWithPrivilegeSchema.parse(req.body);
 
       const {
         name,
@@ -155,15 +150,23 @@ router.post(
         role,
         city,
         country,
-        documentId,
         documentFrontImage,
       } = parsedBody;
 
       const verification = await verifyDocument({
         documentFrontImage,
         fullName: `${name} ${lastName}`.trim(),
-        documentNumber: documentId,
       });
+
+      const documentDigits = verification.extractedDocumentNumberDigits;
+      if (!documentDigits) {
+        throw new HTTP400Error('No se pudo determinar el número de documento.');
+      }
+
+      const documentId = parseInt(documentDigits, 10);
+      if (Number.isNaN(documentId)) {
+        throw new HTTP400Error('El número de documento detectado es inválido.');
+      }
 
       const hashedPassword = await bcrypt.hash(password, 10);
       await prisma.user.create({
@@ -184,6 +187,7 @@ router.post(
       res.status(201).json({
         message: 'User created successfully',
         documentVerified: verification.isValid,
+        extractedDocumentNumber: verification.formattedExtractedDocumentNumber ?? documentDigits,
       });
     } catch (error: any) {
       if (error.code === 'P2002') {

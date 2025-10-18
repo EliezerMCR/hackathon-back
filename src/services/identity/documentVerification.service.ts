@@ -13,12 +13,15 @@ export interface DocumentVerificationResult {
   bestDocumentCandidate?: string;
   documentDistance?: number;
   matchedVariant?: string;
+  rawExtractedDocumentNumber?: string | null;
+  extractedDocumentNumberDigits?: string;
+  formattedExtractedDocumentNumber?: string;
 }
 
 export interface VerifyDocumentParams {
   filePath: string;
   fullName: string;
-  documentNumber: string;
+  documentNumber?: string;
   language?: string;
   mimeType?: string;
 }
@@ -135,40 +138,56 @@ export const verifyIdentityDocument = async ({
   const missingNameTokens = nameTokens.filter((token) => !normalizedText.includes(token));
   const nameMatches = missingNameTokens.length === 0;
 
-  const expectedDocumentDigits = normalizeDigits(documentNumber);
+  const expectedDocumentDigits = documentNumber ? normalizeDigits(documentNumber) : '';
   const documentDigitsInText = normalizeDigits(normalizedText);
-  const directMatch = documentDigitsInText.includes(expectedDocumentDigits);
+  const directMatch = expectedDocumentDigits ? documentDigitsInText.includes(expectedDocumentDigits) : false;
   let documentMatches = directMatch;
   let bestDocumentCandidate: string | undefined;
   let documentDistance: number | undefined;
   let matchedVariant: string | undefined;
 
-  const sanitizedText = sanitizeAlphaNumeric(normalizedText);
-  const expectedSanitized = `V${expectedDocumentDigits}`;
+  if (expectedDocumentDigits) {
+    const sanitizedText = sanitizeAlphaNumeric(normalizedText);
+    const expectedSanitized = `V${expectedDocumentDigits}`;
 
-  if (!documentMatches && sanitizedText.includes(expectedSanitized)) {
-    documentMatches = true;
-    matchedVariant = 'V + digits (sanitized)';
-  }
+    if (!documentMatches && sanitizedText.includes(expectedSanitized)) {
+      documentMatches = true;
+      matchedVariant = 'V + digits (sanitized)';
+    }
 
-  if (!documentMatches) {
-    const variants = buildDocumentVariants(expectedDocumentDigits);
-    for (const variant of variants) {
-      const sanitizedVariant = sanitizeAlphaNumeric(variant);
-      if (sanitizedVariant && sanitizedText.includes(sanitizedVariant)) {
-        documentMatches = true;
-        matchedVariant = variant;
-        break;
+    if (!documentMatches) {
+      const variants = buildDocumentVariants(expectedDocumentDigits);
+      for (const variant of variants) {
+        const sanitizedVariant = sanitizeAlphaNumeric(variant);
+        if (sanitizedVariant && sanitizedText.includes(sanitizedVariant)) {
+          documentMatches = true;
+          matchedVariant = variant;
+          break;
+        }
       }
     }
+
+    if (!documentMatches) {
+      const fuzzy = computeDocumentMatch(normalizedText, expectedDocumentDigits);
+      documentMatches = fuzzy.matches;
+      bestDocumentCandidate = fuzzy.bestCandidate;
+      documentDistance = fuzzy.distance;
+    }
+  } else {
+    const digitSequences = extractDigitSequences(normalizedText);
+    bestDocumentCandidate = digitSequences.sort((a, b) => b.length - a.length)[0];
+    documentMatches = Boolean(bestDocumentCandidate);
+    matchedVariant = bestDocumentCandidate;
   }
 
-  if (!documentMatches) {
-    const fuzzy = computeDocumentMatch(normalizedText, expectedDocumentDigits);
-    documentMatches = fuzzy.matches;
-    bestDocumentCandidate = fuzzy.bestCandidate;
-    documentDistance = fuzzy.distance;
-  }
+  const extractedDigitsSource =
+    bestDocumentCandidate || (documentMatches && expectedDocumentDigits ? expectedDocumentDigits : undefined);
+  const extractedDocumentNumberDigits = extractedDigitsSource
+    ? normalizeDigits(extractedDigitsSource)
+    : undefined;
+  const formattedExtractedDocumentNumber = extractedDocumentNumberDigits
+    ? formatDigitsWithSeparators(extractedDocumentNumberDigits)
+    : undefined;
 
   return {
     text: data.text,
@@ -180,6 +199,9 @@ export const verifyIdentityDocument = async ({
     bestDocumentCandidate,
     documentDistance,
     matchedVariant,
+    rawExtractedDocumentNumber: extractedDigitsSource ?? null,
+    extractedDocumentNumberDigits,
+    formattedExtractedDocumentNumber,
   };
 };
 
@@ -192,17 +214,21 @@ export const verifyIdentityDocumentWithGemini = async ({
   const geminiClient = new GeminiClient();
   const model = geminiClient.getModel();
 
+  const documentInfoLine = documentNumber
+    ? `- Número de documento: ${documentNumber}`
+    : '- Número de documento: (extraer de la imagen y devolverlo)';
+
   const prompt = `
 Eres un asistente de validación de identidad. Tu tarea es analizar la imagen de un documento de identidad y verificar si los datos coinciden con la información proporcionada.
 
 Información del usuario:
 - Nombre completo: ${fullName}
-- Número de documento: ${documentNumber}
+${documentInfoLine}
 
 Analiza la imagen adjunta y responde en formato JSON con la siguiente estructura:
 {
   "nameMatches": boolean, // true si el nombre en el documento coincide con el nombre proporcionado
-  "documentMatches": boolean, // true si el número de documento coincide con el número proporcionado
+  "documentMatches": boolean, // true si el número de documento coincide con el proporcionado (cuando exista) o si lograste leerlo correctamente de la imagen
   "extractedName": string, // El nombre completo extraído del documento
   "extractedDocumentNumber": string, // El número de documento extraído del documento
   "isValid": boolean // true si tanto el nombre como el número de documento coinciden
@@ -227,16 +253,24 @@ Si no puedes encontrar el nombre o el número de documento, los campos correspon
   // Normalize extracted document number (remove dots and non-digits) before comparing
   const extractedRaw: string | null = jsonResponse.extractedDocumentNumber ?? null;
   const extractedDigits = extractedRaw ? normalizeDigits(String(extractedRaw)) : '';
-  const expectedDigits = normalizeDigits(documentNumber);
+  const expectedDigits = documentNumber ? normalizeDigits(documentNumber) : '';
 
   // Determine document match based on digits-only equality (or inclusion as fallback)
   let documentMatches = false;
   if (extractedDigits && expectedDigits) {
-    documentMatches = extractedDigits === expectedDigits || extractedDigits.includes(expectedDigits) || expectedDigits.includes(extractedDigits);
+    documentMatches =
+      extractedDigits === expectedDigits ||
+      extractedDigits.includes(expectedDigits) ||
+      expectedDigits.includes(extractedDigits);
+  } else {
+    documentMatches = extractedDigits.length > 0;
   }
 
   const nameMatches = Boolean(jsonResponse.nameMatches);
   const isValid = nameMatches && documentMatches;
+  const formattedExtractedDocumentNumber = extractedDigits
+    ? formatDigitsWithSeparators(extractedDigits)
+    : undefined;
 
   return {
     text: responseText,
@@ -248,5 +282,8 @@ Si no puedes encontrar el nombre o el número de documento, los campos correspon
     // debugging helpers
     bestDocumentCandidate: extractedDigits || undefined,
     matchedVariant: extractedRaw || undefined,
+    rawExtractedDocumentNumber: extractedRaw,
+    extractedDocumentNumberDigits: extractedDigits || undefined,
+    formattedExtractedDocumentNumber,
   };
 };
