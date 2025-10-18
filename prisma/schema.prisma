@@ -40,6 +40,11 @@ enum RequestType {
   INVITE
 }
 
+enum EventVisibility {
+  PUBLIC
+  PRIVATE
+}
+
 model User {
   id                   Int        @id @default(autoincrement())
   name                 String     @db.VarChar(100)
@@ -75,6 +80,7 @@ model User {
   createdCommunities  Community[]        @relation("CommunityCreator")
   communityInvitationsReceived CommunityInvitation[] @relation("CommunityInvitationUser")
   communityInvitationsSent     CommunityInvitation[] @relation("CommunityInvitationBy")
+  eventAttendances    EventAttendee[]
 
   @@map("User")
 }
@@ -129,6 +135,7 @@ model Event {
   communityId Int?         @map("community_id")
   minAge      Int          @default(18) @map("min_age")
   status      String       @default("proximo") @db.VarChar(20)
+  visibility  EventVisibility @default(PRIVATE)
   createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
   externalUrl String?      @map("external_url")
   place       Place        @relation(fields: [placeId], references: [id], onDelete: Cascade)
@@ -138,6 +145,7 @@ model Event {
   reviews     Review[]
   ads         Ad[]         @relation("AdEvent")
   invitations Invitation[]
+  attendees   EventAttendee[]
 
   @@map("Event")
 }
@@ -317,4 +325,15 @@ model Notification {
   user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("Notification")
+}
+
+model EventAttendee {
+  eventId  Int      @map("event_id")
+  userId   Int      @map("user_id")
+  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+  @@map("Event_Attendee")
 }

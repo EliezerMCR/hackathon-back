@@ -63,6 +63,15 @@ const updateCommunitySchema = z.object({
   name: z.string().min(1).max(255).optional(),
 });
 
+const communityEventFilterSchema = z.object({
+  status: z.string().optional(),
+  visibility: z.enum(['PUBLIC', 'PRIVATE']).optional(),
+  upcomingOnly: z
+    .string()
+    .optional()
+    .transform(value => value === 'true'),
+});
+
 // ==================== COMMUNITIES CRUD ====================
 
 // GET /api/communities - Get all communities
@@ -204,6 +213,84 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
   } catch (error) {
     console.error('Error creating community:', error);
     next(error);
+  }
+});
+
+// GET /api/communities/:id/events - List events for a community
+router.get('/:id/events', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const communityId = parseInt(id, 10);
+
+    if (isNaN(communityId)) {
+      return res.status(400).json({ error: 'Invalid community ID' });
+    }
+
+    const filters = communityEventFilterSchema.safeParse(req.query);
+
+    if (!filters.success) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: filters.error.errors,
+      });
+    }
+
+    const { status, visibility, upcomingOnly } = filters.data;
+
+    const where: any = {
+      communityId,
+    };
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (visibility) {
+      where.visibility = visibility;
+    }
+
+    if (upcomingOnly) {
+      where.timeBegin = {
+        gte: new Date(),
+      };
+    }
+
+    const events = await prisma.event.findMany({
+      where,
+      include: {
+        place: {
+          select: {
+            id: true,
+            name: true,
+            city: true,
+            country: true,
+            image: true,
+          },
+        },
+        organizer: {
+          select: {
+            id: true,
+            name: true,
+            lastName: true,
+            image: true,
+          },
+        },
+        _count: {
+          select: {
+            attendees: true,
+            reviews: true,
+          },
+        },
+      },
+      orderBy: {
+        timeBegin: 'asc',
+      },
+    });
+
+    res.json(events);
+  } catch (error) {
+    console.error('Error fetching community events:', error);
+    res.status(500).json({ error: 'Failed to fetch community events' });
   }
 });
 

@@ -73,6 +73,53 @@ router.get('/me/events', authenticate, async (req: any, res: any, next) => {
   }
 });
 
+// Get events the authenticated user has joined
+router.get('/me/events/joined', authenticate, async (req: any, res: any, next) => {
+  try {
+    const userId = req.user.userId;
+
+    const attendances = await prisma.eventAttendee.findMany({
+      where: { userId },
+      include: {
+        event: {
+          include: {
+            place: {
+              select: {
+                id: true,
+                name: true,
+                city: true,
+                country: true,
+                image: true,
+              },
+            },
+            community: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            organizer: {
+              select: {
+                id: true,
+                name: true,
+                lastName: true,
+                image: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        joinedAt: 'desc',
+      },
+    });
+
+    res.json(attendances);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get communities where the authenticated user is a member
 router.get('/me/communities', authenticate, async (req: any, res: any, next) => {
   try {
