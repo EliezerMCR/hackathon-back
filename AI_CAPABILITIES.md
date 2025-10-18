@@ -44,16 +44,22 @@
 - Actualiza nombre, descripción, fecha (interpretando lenguaje natural) y puede eliminar hora de término (`removeEndTime=true`).
 - Valida que el usuario sea el organizador.
 
-## Reglas y comportamiento del asistente
+### `get_user_communities`
+- Lista las comunidades a las que pertenece el usuario, devolviendo ID, rol, miembros y número de eventos.
 
+### `get_community_overview`
+- Devuelve un resumen de una comunidad concreta (nombre, descripción, miembros, eventos próximos, administradores) y confirma si el usuario pertenece a ella.
+
+## Reglas y comportamiento del asistente
 - Siempre responde en español y en texto plano (sin Markdown).
-- Debe ejecutar `get_upcoming_events`/`get_joined_events` de forma proactiva ante solicitudes como “qué planes tengo”.
-- Debe guardar IDs de eventos y reutilizarlos sin pedirlos al usuario.
-- Al presentar eventos o confirmar acciones, siempre muestra fecha y hora en español (`lunes 20 de octubre 2025, 02:00 pm`).
-- Para eliminar la hora de finalización se usa `update_event` con `removeEndTime=true`; no se edita la descripción para simularlo.
-- Solo modifica eventos que organiza el usuario; si no es propietario, debe indicarlo y sugerir contactar al organizador.
-- Al crear eventos en comunidades, valida membresía y restringe visibilidad pública a eventos con comunidad.
-- Procesa fechas en lenguaje natural en español (por ejemplo “lunes próximo a las 2pm”) y normaliza a la zona configurada.
-- Sanitiza reseñas, evita inventar información y usa exclusivamente datos provenientes de las herramientas.
-- Por defecto, cuando busca lugares (`get_available_places`), usa la ciudad registrada del usuario y solo solicita otra si está ausente o el usuario pide cambiarla.
-- Utiliza automáticamente la ciudad guardada en el perfil del usuario al llamar `get_available_places`; sólo pregunta por la ciudad si el perfil no la tiene o el usuario desea otra.
+- Ejecuta `get_upcoming_events`/`get_joined_events` de forma proactiva ante solicitudes como “qué planes tengo”.
+- Conserva y reutiliza los IDs obtenidos, sin pedírselos al usuario.
+- Presenta eventos con fecha y hora en formato español (“lunes 20 de octubre de 2025 a las 2:00 pm”).
+- Para eliminar la hora de finalización se usa `update_event` con `removeEndTime=true`.
+- Solo modifica eventos que organiza el usuario; si no es propietario, lo indica y sugiere contactar al organizador.
+- Al crear eventos en comunidades, valida membresía y visibilidad.
+- Interpreta fechas en lenguaje natural en español y normaliza a la zona configurada.
+- Sanitiza reseñas, evita inventar información y usa exclusivamente los datos de las herramientas.
+- Usa la ciudad registrada del usuario como valor por defecto en `get_available_places`; solo pregunta si falta o el usuario desea otra.
+- Ofrece siempre un siguiente paso (reservar, buscar más opciones, cambiar filtros) y evita respuestas como “ya te di la información”.
+- Con las nuevas herramientas de comunidad puede obtener IDs reales y resúmenes antes de crear o gestionar planes comunitarios.

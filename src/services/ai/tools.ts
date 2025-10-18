@@ -19,6 +19,9 @@ import {
   EventUpdateResult,
   JoinedEventsResult,
   JoinedEventSummary,
+  CommunityOverviewResult,
+  UserCommunitySummary,
+  UserCommunitiesResult,
 } from './types';
 
 const EVENT_TIMEZONE = process.env.EVENT_TIMEZONE || 'America/Caracas';
@@ -1434,6 +1437,242 @@ export const getCommunityEventsTool: AITool = {
 };
 
 /**
+ * Tool: Fetch an overview of a specific community.
+ */
+export const getCommunityOverviewTool: AITool = {
+  name: 'get_community_overview',
+  description:
+    'Devuelve información resumida de una comunidad (nombre, miembros, eventos próximos) para que el asistente no pida IDs manualmente.',
+  parameters: {
+    type: 'object',
+    properties: {
+      communityId: {
+        type: 'number',
+        description: 'ID real de la comunidad que deseas consultar.',
+      },
+      includeRecentEvents: {
+        type: 'boolean',
+        description: 'Si es true, incluye hasta 3 eventos próximos a modo de resumen.',
+      },
+    },
+    required: ['communityId'],
+  },
+  handler: async (
+    params: { communityId: number; includeRecentEvents?: boolean },
+    userId: number,
+  ): Promise<CommunityOverviewResult> => {
+    const { communityId, includeRecentEvents = true } = params;
+
+    if (!communityId || Number.isNaN(communityId)) {
+      return {
+        success: false,
+        reason: 'INVALID_COMMUNITY_ID',
+        message: 'Debes indicar un ID de comunidad válido.',
+      };
+    }
+
+    const [community, membership, adminMembers] = await Promise.all([
+      prisma.community.findUnique({
+        where: { id: communityId },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              lastName: true,
+            },
+          },
+          _count: {
+            select: {
+              members: true,
+              events: true,
+            },
+          },
+        },
+      }),
+      prisma.community_Member.findUnique({
+        where: {
+          userId_communityId: {
+            userId,
+            communityId,
+          },
+        },
+        select: {
+          role: true,
+          exitAt: true,
+        },
+      }),
+      prisma.community_Member.findMany({
+        where: {
+          communityId,
+          role: 'ADMIN',
+          exitAt: null,
+        },
+        take: 5,
+        select: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              lastName: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    if (!community) {
+      return {
+        success: false,
+        reason: 'COMMUNITY_NOT_FOUND',
+        message: 'No encontré una comunidad con ese ID.',
+      };
+    }
+
+    const isMember = Boolean(membership) && !membership?.exitAt;
+
+    let recentEvents: Array<{
+      id: number;
+      name: string;
+      timeBegin: string;
+      localTimeDescription: string;
+    }> | undefined;
+
+    if (includeRecentEvents && isMember) {
+      const upcoming = await prisma.event.findMany({
+        where: {
+          communityId,
+          timeBegin: {
+            gte: new Date(),
+          },
+        },
+        orderBy: {
+          timeBegin: 'asc',
+        },
+        take: 3,
+        select: {
+          id: true,
+          name: true,
+          timeBegin: true,
+        },
+      });
+
+      recentEvents = upcoming.map(event => {
+        const localTime = DateTime.fromJSDate(event.timeBegin).setZone(EVENT_TIMEZONE);
+        return {
+          id: event.id,
+          name: event.name,
+          timeBegin: event.timeBegin.toISOString(),
+          localTimeDescription: formatDateTimeEs(localTime),
+        };
+      });
+    }
+
+    const admins = adminMembers
+      .filter(member => Boolean(member.user))
+      .map(member => ({
+        id: member.user!.id,
+        name: member.user!.name,
+        lastName: member.user!.lastName,
+      }));
+
+    return {
+      success: true,
+      community: {
+        id: community.id,
+        name: community.name,
+        description: null,
+        createdAt: null,
+        memberCount: community._count?.members ?? 0,
+        eventCount: community._count?.events ?? 0,
+        isMember,
+        role: isMember ? membership?.role ?? undefined : undefined,
+        recentEvents,
+        admins,
+      },
+      message: `Resumen de la comunidad "${community.name}" listo.`,
+    };
+  },
+};
+
+/**
+ * Tool: List communities the user belongs to.
+ */
+export const getUserCommunitiesTool: AITool = {
+  name: 'get_user_communities',
+  description:
+    'Lista las comunidades a las que pertenece el usuario autenticado con sus IDs y roles.',
+  parameters: {
+    type: 'object',
+    properties: {
+      limit: {
+        type: 'number',
+        description: 'Número máximo de comunidades a devolver (por defecto 10, máximo 50).',
+      },
+      includeInactive: {
+        type: 'boolean',
+        description: 'Si es true, incluye comunidades de las que el usuario salió (exitAt != null).',
+      },
+    },
+  },
+  handler: async (
+    params: { limit?: number; includeInactive?: boolean },
+    userId: number,
+  ): Promise<UserCommunitiesResult> => {
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 50);
+    const includeInactive = Boolean(params.includeInactive);
+
+    const memberships = await prisma.community_Member.findMany({
+      where: {
+        userId,
+        ...(includeInactive ? {} : { exitAt: null }),
+      },
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        community: {
+          select: {
+            id: true,
+            name: true,
+            _count: {
+              select: {
+                members: true,
+                events: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!memberships.length) {
+      return {
+        success: true,
+        communities: [],
+        message: 'No encontré comunidades asociadas a tu cuenta.',
+      };
+    }
+
+  const communities: UserCommunitySummary[] = memberships
+    .filter(membership => membership.community)
+    .map(membership => ({
+      id: membership.community!.id,
+      name: membership.community!.name,
+      role: membership.exitAt ? 'INACTIVE' : membership.role,
+      createdAt: membership.createdAt.toISOString(),
+      totalMembers: membership.community!._count.members,
+      upcomingEvents: membership.community!._count.events,
+    }));
+
+    return {
+      success: true,
+      communities,
+      message: `Encontré ${communities.length} comunidad(es) relacionadas contigo.`,
+    };
+  },
+};
+
+/**
  * Tool: Join a public community event.
  */
 export const joinCommunityEventTool: AITool = {
@@ -1865,6 +2104,8 @@ export const availableTools: AITool[] = [
   getUpcomingEventsTool,
   getJoinedEventsTool,
   getCommunityEventsTool,
+  getCommunityOverviewTool,
+  getUserCommunitiesTool,
   joinCommunityEventTool,
   updateEventTool,
   createEventTool,

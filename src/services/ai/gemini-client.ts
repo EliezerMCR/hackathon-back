@@ -27,16 +27,17 @@ export class GeminiClient {
 
     // Use gemini-1.5-pro for better function calling support
     // gemini-2.0-flash-exp has issues with function calling (generates code instead)
-    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
     this.model = this.genAI.getGenerativeModel({
       model: modelName,
       generationConfig: {
         // Lower temperature = less creative, more factual and deterministic
-        // We want the AI to be very strict and not invent information
-        temperature: 0.1,
-        topP: 0.8,
-        topK: 20,
+        // We want the AI to be strict but still able to generate responses
+        // 0.1 was too low and caused the model to not respond after tool calls
+        temperature: 0.3,
+        topP: 0.85,
+        topK: 30,
         maxOutputTokens: 8192,
       },
     });

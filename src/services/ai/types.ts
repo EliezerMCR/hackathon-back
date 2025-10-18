@@ -256,3 +256,50 @@ export interface JoinedEventsResult {
   reason?: string;
   details?: any;
 }
+
+export interface CommunityOverview {
+  id: number;
+  name: string;
+  description?: string | null;
+  createdAt?: string | null;
+  memberCount: number;
+  eventCount: number;
+  isMember: boolean;
+  role?: string;
+  recentEvents?: Array<{
+    id: number;
+    name: string;
+    timeBegin: string;
+    localTimeDescription: string;
+  }>;
+  admins?: Array<{
+    id: number;
+    name: string | null;
+    lastName: string | null;
+  }>;
+}
+
+export interface CommunityOverviewResult {
+  success: boolean;
+  community?: CommunityOverview;
+  message?: string;
+  reason?: string;
+  details?: any;
+}
+
+export interface UserCommunitySummary {
+  id: number;
+  name: string;
+  role: string;
+  createdAt: string;
+  totalMembers: number;
+  upcomingEvents: number;
+}
+
+export interface UserCommunitiesResult {
+  success: boolean;
+  communities: UserCommunitySummary[];
+  message?: string;
+  reason?: string;
+  details?: any;
+}
