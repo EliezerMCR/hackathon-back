@@ -1,8 +1,57 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { authenticate } from '../middlewares/auth';
+import { HTTP403Error, HTTP404Error } from '../utils/errors';
 
 const router = Router();
+const prismaAny = prisma as any;
+
+type AuthRequest = Request & { user?: { userId: number; role: string } };
+
+const isGlobalAdmin = (req: AuthRequest) => req.user?.role === 'ADMIN';
+
+const getCommunityWithRole = async (communityId: number, userId?: number) => {
+  if (userId) {
+    return prisma.community.findUnique({
+      where: { id: communityId },
+      include: {
+        members: {
+          where: { userId },
+          select: { role: true },
+        },
+      },
+    }) as unknown as { id: number; name: string; createdById: number; members: { role: string }[] } | null;
+  }
+
+  return prisma.community.findUnique({ where: { id: communityId } }) as unknown as {
+    id: number;
+    name: string;
+    createdById: number;
+  } | null;
+};
+
+const ensureCommunityAdmin = async (req: AuthRequest, communityId: number) => {
+  if (!req.user) {
+    throw new HTTP403Error('Authentication required');
+  }
+
+  if (isGlobalAdmin(req)) {
+    return;
+  }
+
+  const community = await getCommunityWithRole(communityId, req.user.userId);
+
+  if (!community) {
+    throw new HTTP404Error('Community not found');
+  }
+
+  const isCreator = community.createdById === req.user.userId;
+  const role = (community as any)?.members?.[0]?.role;
+  if (!isCreator && role !== 'ADMIN') {
+    throw new HTTP403Error('You do not have permission to manage this community');
+  }
+};
 
 // ==================== VALIDATION SCHEMAS ====================
 
@@ -101,54 +150,83 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/communities - Create new community
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const validation = createCommunitySchema.safeParse(req.body);
-    
+
     if (!validation.success) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Validation failed',
-        details: validation.error.errors 
+        details: validation.error.errors,
       });
     }
 
     const { name } = validation.data;
-      // Verificar si ya existe una comunidad con el mismo nombre
-      const existing = await prisma.community.findFirst({
-        where: { name },
-      });
-      if (existing) {
-        return res.status(409).json({ error: 'Ya existe una comunidad con ese nombre' });
-      }
-      const community = await prisma.community.create({
-        data: { name },
-      });
-      res.status(201).json({
-        message: 'Comunidad creada exitosamente',
-        community,
-      });
+    const creatorId = req.user?.userId;
+
+    if (!creatorId) {
+      throw new HTTP403Error('Authentication required');
+    }
+
+    const existing = await prisma.community.findFirst({
+      where: { name },
+    });
+    if (existing) {
+      return res.status(409).json({ error: 'Ya existe una comunidad con ese nombre' });
+    }
+
+    const community = await prisma.community.create({
+      data: {
+        name,
+        createdById: creatorId,
+        members: {
+          create: {
+            userId: creatorId,
+            role: 'ADMIN',
+          },
+        },
+      } as any,
+      include: {
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, lastName: true, email: true, image: true },
+            },
+          },
+        },
+      },
+    });
+
+    res.status(201).json({
+      message: 'Comunidad creada exitosamente',
+      community,
+    });
   } catch (error) {
     console.error('Error creating community:', error);
-    res.status(500).json({ error: 'Failed to create community' });
+    next(error);
   }
 });
 
 // PUT /api/communities/:id - Update community
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const communityId = parseInt(id, 10);
-    
+
     if (isNaN(communityId)) {
       return res.status(400).json({ error: 'Invalid community ID' });
     }
 
+  await ensureCommunityAdmin(req, communityId);
+
+  const inviterId = req.user!.userId;
+
     const validation = updateCommunitySchema.safeParse(req.body);
-    
+
     if (!validation.success) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Validation failed',
-        details: validation.error.errors 
+        details: validation.error.errors,
       });
     }
 
@@ -158,27 +236,24 @@ router.put('/:id', async (req: Request, res: Response) => {
     });
 
     res.json(community);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating community:', error);
-    
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Community not found' });
-    }
-    
-    res.status(500).json({ error: 'Failed to update community' });
+    next(error);
   }
 });
 
 // DELETE /api/communities/:id - Delete community
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const communityId = parseInt(id, 10);
-    
+
     if (isNaN(communityId)) {
       return res.status(400).json({ error: 'Invalid community ID' });
     }
-    
+
+    await ensureCommunityAdmin(req, communityId);
+
     const deleted = await prisma.community.delete({
       where: { id: communityId },
     });
@@ -186,14 +261,9 @@ router.delete('/:id', async (req: Request, res: Response) => {
       message: `Comunidad '${deleted.name}' eliminada exitosamente`,
       id: deleted.id,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error deleting community:', error);
-    
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Community not found' });
-    }
-    
-    res.status(500).json({ error: 'Failed to delete community' });
+    next(error);
   }
 });
 
@@ -241,36 +311,28 @@ router.get('/:id/members', async (req: Request, res: Response) => {
 });
 
 // POST /api/communities/:id/members - Add member to community (Admin only)
-router.post('/:id/members', async (req: Request, res: Response) => {
+router.post('/:id/members', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const communityId = parseInt(id, 10);
-    
+
     if (isNaN(communityId)) {
       return res.status(400).json({ error: 'Invalid community ID' });
     }
 
+    await ensureCommunityAdmin(req, communityId);
+
     const validation = addMemberSchema.safeParse(req.body);
-    
+
     if (!validation.success) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Validation failed',
-        details: validation.error.errors 
+        details: validation.error.errors,
       });
     }
 
     const { userId, role } = validation.data;
 
-    // Verify community exists
-    const communityExists = await prisma.community.findUnique({
-      where: { id: communityId },
-    });
-
-    if (!communityExists) {
-      return res.status(404).json({ error: 'Community not found' });
-    }
-
-    // Verify user exists
     const userExists = await prisma.user.findUnique({
       where: { id: userId },
     });
@@ -279,7 +341,6 @@ router.post('/:id/members', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Add member
     const member = await prisma.community_Member.create({
       data: {
         userId,
@@ -308,25 +369,27 @@ router.post('/:id/members', async (req: Request, res: Response) => {
     res.status(201).json(member);
   } catch (error: any) {
     console.error('Error adding community member:', error);
-    
+
     if (error.code === 'P2002') {
       return res.status(409).json({ error: 'User is already a member of this community' });
     }
-    
-    res.status(500).json({ error: 'Failed to add community member' });
+
+    next(error);
   }
 });
 
 // DELETE /api/communities/:id/members/:userId - Remove member from community
-router.delete('/:id/members/:userId', async (req: Request, res: Response) => {
+router.delete('/:id/members/:userId', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id, userId } = req.params;
     const communityId = parseInt(id, 10);
     const memberUserId = parseInt(userId, 10);
-    
+
     if (isNaN(communityId) || isNaN(memberUserId)) {
       return res.status(400).json({ error: 'Invalid ID' });
     }
+
+    await ensureCommunityAdmin(req, communityId);
 
     const deleted = await prisma.community_Member.delete({
       where: {
@@ -343,30 +406,284 @@ router.delete('/:id/members/:userId', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error removing community member:', error);
-    
+
     if (error.code === 'P2025') {
       return res.status(404).json({ error: 'Member not found in this community' });
     }
-    
-    res.status(500).json({ error: 'Failed to remove community member' });
+
+    next(error);
+  }
+});
+
+// ==================== COMMUNITY INVITATIONS ====================
+
+router.get('/:id/invitations', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const communityId = parseInt(id, 10);
+
+    if (isNaN(communityId)) {
+      return res.status(400).json({ error: 'Invalid community ID' });
+    }
+
+    await ensureCommunityAdmin(req, communityId);
+
+  const invitations = await prismaAny.communityInvitation.findMany({
+      where: { communityId },
+      include: {
+        invitedUser: {
+          select: {
+            id: true,
+            name: true,
+            lastName: true,
+            email: true,
+            image: true,
+          },
+        },
+        invitedBy: {
+          select: {
+            id: true,
+            name: true,
+            lastName: true,
+            email: true,
+            image: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    res.json(invitations);
+  } catch (error) {
+    console.error('Error fetching community invitations:', error);
+    next(error);
+  }
+});
+
+router.post('/:id/invitations', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const communityId = parseInt(id, 10);
+
+    if (isNaN(communityId)) {
+      return res.status(400).json({ error: 'Invalid community ID' });
+    }
+
+    await ensureCommunityAdmin(req, communityId);
+
+    const inviterId = req.user!.userId;
+
+    const validation = inviteMemberSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: validation.error.errors,
+      });
+    }
+
+    const { userId } = validation.data;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const isMember = await prisma.community_Member.findUnique({
+      where: {
+        userId_communityId: {
+          userId,
+          communityId,
+        },
+      },
+    });
+
+    if (isMember) {
+      return res.status(409).json({ error: 'User is already a member of this community' });
+    }
+
+    const existingInvitation = await prismaAny.communityInvitation.findUnique({
+      where: {
+        communityId_invitedUserId: {
+          communityId,
+          invitedUserId: userId,
+        },
+      },
+    });
+
+    if (existingInvitation && existingInvitation.status === 'PENDING') {
+      return res.status(409).json({ error: 'User already has a pending invitation' });
+    }
+
+    const invitation = await prismaAny.communityInvitation.upsert({
+      where: {
+        communityId_invitedUserId: {
+          communityId,
+          invitedUserId: userId,
+        },
+      },
+      update: {
+        status: 'PENDING',
+        invitedById: inviterId,
+        respondedAt: null,
+      },
+      create: {
+        communityId,
+        invitedUserId: userId,
+        invitedById: inviterId,
+        status: 'PENDING',
+      },
+      include: {
+        invitedUser: {
+          select: {
+            id: true,
+            name: true,
+            lastName: true,
+            email: true,
+            image: true,
+          },
+        },
+        invitedBy: {
+          select: {
+            id: true,
+            name: true,
+            lastName: true,
+            email: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    res.status(201).json(invitation);
+  } catch (error) {
+    console.error('Error creating community invitation:', error);
+    next(error);
+  }
+});
+
+router.post('/invitations/:invitationId/accept', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { invitationId } = req.params;
+    const id = parseInt(invitationId, 10);
+
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid invitation ID' });
+    }
+
+    const invitation = await prismaAny.communityInvitation.findUnique({
+      where: { id },
+    });
+
+    if (!invitation) {
+      return res.status(404).json({ error: 'Invitation not found' });
+    }
+
+    if (invitation.invitedUserId !== req.user?.userId) {
+      throw new HTTP403Error('You are not allowed to respond to this invitation');
+    }
+
+    if (invitation.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Invitation already processed' });
+    }
+
+    await prisma.$transaction([
+      prismaAny.communityInvitation.update({
+        where: { id },
+        data: {
+          status: 'ACCEPTED',
+          respondedAt: new Date(),
+        },
+      }),
+      prisma.community_Member.upsert({
+        where: {
+          userId_communityId: {
+            userId: invitation.invitedUserId,
+            communityId: invitation.communityId,
+          },
+        },
+        update: {},
+        create: {
+          userId: invitation.invitedUserId,
+          communityId: invitation.communityId,
+          role: 'CLIENT',
+        },
+      }),
+    ]);
+
+    res.status(200).json({ message: 'Invitation accepted' });
+  } catch (error) {
+    console.error('Error accepting invitation:', error);
+    next(error);
+  }
+});
+
+router.post('/invitations/:invitationId/reject', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { invitationId } = req.params;
+    const id = parseInt(invitationId, 10);
+
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid invitation ID' });
+    }
+
+    const invitation = await prismaAny.communityInvitation.findUnique({
+      where: { id },
+    });
+
+    if (!invitation) {
+      return res.status(404).json({ error: 'Invitation not found' });
+    }
+
+    if (invitation.invitedUserId !== req.user?.userId) {
+      throw new HTTP403Error('You are not allowed to respond to this invitation');
+    }
+
+    if (invitation.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Invitation already processed' });
+    }
+
+    await prismaAny.communityInvitation.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        respondedAt: new Date(),
+      },
+    });
+
+    res.status(200).json({ message: 'Invitation rejected' });
+  } catch (error) {
+    console.error('Error rejecting invitation:', error);
+    next(error);
   }
 });
 
 // ==================== COMMUNITY REQUESTS ====================
 
-const createRequestSchema = z.object({
-  fromId: z.number().int().positive(),
-});
+
+const inviteMemberSchema = z
+  .object({
+    userId: z.coerce.number().int().positive().optional(),
+    invitedUserId: z.coerce.number().int().positive().optional(),
+  })
+  .refine(data => data.userId !== undefined || data.invitedUserId !== undefined, {
+    message: 'userId is required',
+    path: ['userId'],
+  })
+  .transform(data => ({ userId: data.userId ?? data.invitedUserId! }));
 
 // GET /api/communities/:id/requests - Get community join requests
-router.get('/:id/requests', async (req: Request, res: Response) => {
+router.get('/:id/requests', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const communityId = parseInt(id, 10);
-    
+
     if (isNaN(communityId)) {
       return res.status(400).json({ error: 'Invalid community ID' });
     }
+
+    await ensureCommunityAdmin(req, communityId);
 
     const requests = await prisma.request.findMany({
       where: { communityId },
@@ -396,54 +713,35 @@ router.get('/:id/requests', async (req: Request, res: Response) => {
     res.json(requests);
   } catch (error) {
     console.error('Error fetching community requests:', error);
-    res.status(500).json({ error: 'Failed to fetch community requests' });
+    next(error);
   }
 });
 
 // POST /api/communities/:id/requests - Create join request
-router.post('/:id/requests', async (req: Request, res: Response) => {
+router.post('/:id/requests', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const communityId = parseInt(id, 10);
-    
+
     if (isNaN(communityId)) {
       return res.status(400).json({ error: 'Invalid community ID' });
     }
 
-    const validation = createRequestSchema.safeParse(req.body);
-    
-    if (!validation.success) {
-      return res.status(400).json({ 
-        error: 'Validation failed',
-        details: validation.error.errors 
-      });
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      throw new HTTP403Error('Authentication required');
     }
 
-    const { fromId } = validation.data;
-
-    // Verify community exists
-    const communityExists = await prisma.community.findUnique({
-      where: { id: communityId },
-    });
-
-    if (!communityExists) {
+    const community = await prisma.community.findUnique({ where: { id: communityId } });
+    if (!community) {
       return res.status(404).json({ error: 'Community not found' });
     }
 
-    // Verify user exists
-    const userExists = await prisma.user.findUnique({
-      where: { id: fromId },
-    });
-
-    if (!userExists) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Check if user is already a member
     const isMember = await prisma.community_Member.findUnique({
       where: {
         userId_communityId: {
-          userId: fromId,
+          userId,
           communityId,
         },
       },
@@ -453,13 +751,37 @@ router.post('/:id/requests', async (req: Request, res: Response) => {
       return res.status(409).json({ error: 'User is already a member of this community' });
     }
 
-    // Create request
-    const request = await prisma.request.create({
-      data: {
-        fromId,
+    const existingRequest = await prisma.request.findUnique({
+      where: {
+        fromId_communityId: {
+          fromId: userId,
+          communityId,
+        },
+      },
+    });
+
+    if (existingRequest && existingRequest.status === 'PENDING') {
+      return res.status(409).json({ error: 'You already have a pending request for this community' });
+    }
+
+    const request = await prisma.request.upsert({
+      where: {
+        fromId_communityId: {
+          fromId: userId,
+          communityId,
+        },
+      },
+      update: {
+        status: 'PENDING',
+        acceptedById: null,
+        type: 'JOIN',
+      } as any,
+      create: {
+        fromId: userId,
         communityId,
         status: 'PENDING',
-      },
+        type: 'JOIN',
+      } as any,
       include: {
         from: {
           select: {
@@ -482,12 +804,108 @@ router.post('/:id/requests', async (req: Request, res: Response) => {
     res.status(201).json(request);
   } catch (error: any) {
     console.error('Error creating request:', error);
-    
+
     if (error.code === 'P2002') {
       return res.status(409).json({ error: 'Request already exists' });
     }
-    
-    res.status(500).json({ error: 'Failed to create request' });
+
+    next(error);
+  }
+});
+
+router.post('/:id/requests/:requestId/approve', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id, requestId } = req.params;
+    const communityId = parseInt(id, 10);
+    const reqId = parseInt(requestId, 10);
+
+    if (isNaN(communityId) || isNaN(reqId)) {
+      return res.status(400).json({ error: 'Invalid identifiers' });
+    }
+
+    await ensureCommunityAdmin(req, communityId);
+
+    const joinRequest = await prisma.request.findFirst({
+      where: { id: reqId, communityId },
+    });
+
+    if (!joinRequest) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+
+    if (joinRequest.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Request already processed' });
+    }
+
+    const userId = joinRequest.fromId;
+
+    await prisma.$transaction([
+      prisma.request.update({
+        where: { id: joinRequest.id },
+        data: {
+          status: 'ACCEPTED',
+          acceptedById: req.user?.userId ?? null,
+        },
+      }),
+      prisma.community_Member.upsert({
+        where: {
+          userId_communityId: {
+            userId,
+            communityId,
+          },
+        },
+        update: {},
+        create: {
+          userId,
+          communityId,
+          role: 'CLIENT',
+        },
+      }) as any,
+    ]);
+
+    res.status(200).json({ message: 'Request approved' });
+  } catch (error) {
+    console.error('Error approving request:', error);
+    next(error);
+  }
+});
+
+router.post('/:id/requests/:requestId/reject', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id, requestId } = req.params;
+    const communityId = parseInt(id, 10);
+    const reqId = parseInt(requestId, 10);
+
+    if (isNaN(communityId) || isNaN(reqId)) {
+      return res.status(400).json({ error: 'Invalid identifiers' });
+    }
+
+    await ensureCommunityAdmin(req, communityId);
+
+    const joinRequest = await prisma.request.findFirst({
+      where: { id: reqId, communityId },
+    });
+
+    if (!joinRequest) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+
+    if (joinRequest.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Request already processed' });
+    }
+
+    await prisma.request.update({
+      where: { id: joinRequest.id },
+      data: {
+        status: 'REJECTED',
+        acceptedById: req.user?.userId ?? null,
+      },
+    });
+
+    res.status(200).json({ message: 'Request rejected' });
+  } catch (error) {
+    console.error('Error rejecting request:', error);
+    next(error);
   }
 });
 

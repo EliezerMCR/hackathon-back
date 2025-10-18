@@ -35,6 +35,11 @@ enum PromotionType {
   TICKET
 }
 
+enum RequestType {
+  JOIN
+  INVITE
+}
+
 model User {
   id                   Int        @id @default(autoincrement())
   name                 String     @db.VarChar(100)
@@ -67,6 +72,9 @@ model User {
   boughtTickets       Bought_Ticket[]
   reviews             Review[]
   notifications       Notification[]     @relation("UserNotifications")
+  createdCommunities  Community[]        @relation("CommunityCreator")
+  communityInvitationsReceived CommunityInvitation[] @relation("CommunityInvitationUser")
+  communityInvitationsSent     CommunityInvitation[] @relation("CommunityInvitationBy")
 
   @@map("User")
 }
@@ -175,11 +183,14 @@ model Review {
 }
 
 model Community {
-  id       Int                @id @default(autoincrement())
-  name     String
-  events   Event[]
-  members  Community_Member[]
-  requests Request[]
+  id            Int                   @id @default(autoincrement())
+  name          String
+  createdById   Int                   @map("created_by")
+  createdBy     User                  @relation("CommunityCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  events        Event[]
+  members       Community_Member[]
+  requests      Request[]
+  invitations   CommunityInvitation[]
 
   @@map("Community")
 }
@@ -233,12 +244,29 @@ model Request {
   createdAt    DateTime  @default(now()) @map("created_at")
   status       Status    @default(PENDING)
   acceptedById Int?      @map("accepted_by")
+  type         RequestType @default(JOIN)
   from         User      @relation("RequestFrom", fields: [fromId], references: [id])
   community    Community @relation(fields: [communityId], references: [id])
   acceptedBy   User?     @relation("RequestAcceptedBy", fields: [acceptedById], references: [id])
 
   @@unique([fromId, communityId])
   @@map("Request")
+}
+
+model CommunityInvitation {
+  id            Int      @id @default(autoincrement())
+  communityId   Int      @map("community_id")
+  invitedUserId Int      @map("invited_user_id")
+  invitedById   Int      @map("invited_by_id")
+  status        Status   @default(PENDING)
+  createdAt     DateTime @default(now()) @map("created_at")
+  respondedAt   DateTime? @map("responded_at")
+  community     Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  invitedUser   User      @relation("CommunityInvitationUser", fields: [invitedUserId], references: [id], onDelete: Cascade)
+  invitedBy     User      @relation("CommunityInvitationBy", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, invitedUserId])
+  @@map("Community_Invitation")
 }
 
 model Ad {

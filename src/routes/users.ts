@@ -94,7 +94,6 @@ router.get('/:id', authenticate, async (req: any, res: any, next) => {
       return res.status(400).json({ error: 'Invalid user ID' });
     }
 
-    // If requester is ADMIN return full user, otherwise return public fields only
     const requesterRole = req.user?.role;
 
     if (requesterRole === 'ADMIN') {
@@ -121,6 +120,50 @@ router.get('/:id', authenticate, async (req: any, res: any, next) => {
     if (!publicUser) return next(new HTTP404Error('User not found'));
 
     res.json(publicUser);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:id/invitations', authenticate, async (req: any, res: any, next) => {
+  try {
+    const { id } = req.params;
+    const userId = parseInt(id, 10);
+
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    if (req.user.userId !== userId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const prismaAny = prisma as any;
+    const invitations = await prismaAny.communityInvitation.findMany({
+      where: { invitedUserId: userId },
+      include: {
+        community: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        invitedBy: {
+          select: {
+            id: true,
+            name: true,
+            lastName: true,
+            email: true,
+            image: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    res.json(invitations);
   } catch (error) {
     next(error);
   }
