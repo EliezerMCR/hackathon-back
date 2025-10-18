@@ -19,6 +19,7 @@ const createEventSchema = z.object({
   minAge: z.number().int().min(0).max(100).default(18),
   externalUrl: z.string().url().optional(),
   visibility: z.enum(['PUBLIC', 'PRIVATE']).default('PRIVATE'),
+  image: z.string().min(1),
 });
 
 const updateEventSchema = z.object({
@@ -30,6 +31,7 @@ const updateEventSchema = z.object({
   status: z.string().max(20).optional(),
   externalUrl: z.string().url().optional(),
   visibility: z.enum(['PUBLIC', 'PRIVATE']).optional(),
+  image: z.string().min(1).optional(),
 });
 
 // ==================== EVENTS CRUD ====================

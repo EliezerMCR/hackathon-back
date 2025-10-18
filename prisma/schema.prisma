@@ -138,6 +138,7 @@ model Event {
   visibility  EventVisibility @default(PRIVATE)
   createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
   externalUrl String?      @map("external_url")
+  image       String?      @db.Text
   place       Place        @relation(fields: [placeId], references: [id], onDelete: Cascade)
   organizer   User         @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
   community   Community?   @relation(fields: [communityId], references: [id])
