@@ -117,6 +117,39 @@ router.get('/tools', (_req: Request, res: Response) => {
 });
 
 /**
+ * DELETE /api/ai/conversation
+ * Clear conversation history for the current user
+ * Optional: pass conversationId in query params to clear specific conversation
+ */
+router.delete('/conversation', authenticate, (req: Request, res: Response) => {
+  try {
+    const authUser = (req as any).user;
+    const userId = authUser?.userId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const conversationId = (req.query.conversationId as string) ?? `user-${userId}`;
+
+    // Clear the conversation history
+    aiConversationStore.clear(conversationId);
+
+    res.json({
+      success: true,
+      message: 'Conversation history cleared successfully',
+      conversationId
+    });
+  } catch (error: any) {
+    console.error('Error clearing conversation:', error);
+    res.status(500).json({
+      error: 'Failed to clear conversation',
+      message: error.message
+    });
+  }
+});
+
+/**
  * GET /api/ai/health
  * Check if AI service is configured correctly
  */
