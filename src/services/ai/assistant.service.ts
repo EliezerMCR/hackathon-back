@@ -132,6 +132,31 @@ export class AIAssistantService {
         parts: [{ text: buildEventAssistantPrompt(formatPromptContext(userContext)) }],
       };
 
+      const buildFallbackResponse = (lastToolCall: { name: string; response: any } | null): string | null => {
+        if (!lastToolCall) {
+          return null;
+        }
+
+        if (lastToolCall.name === 'get_available_places') {
+          const data = lastToolCall.response?.data;
+          if (Array.isArray(data) && data.length > 0) {
+            const lines = data
+              .slice(0, 5)
+              .map((place: any, index: number) => {
+                const city = place.city ? ` en ${place.city}` : '';
+                const summary = place.summary ? ` - ${place.summary}` : '';
+                return `${index + 1}. ${place.name}${city}${summary}`;
+              });
+            return ['Encontré estas opciones:', ...lines].join('\n');
+          }
+          if (Array.isArray(data) && data.length === 0) {
+            return 'No pude encontrar lugares con los criterios actuales.';
+          }
+        }
+
+        return null;
+      };
+
       const model = this.geminiClient.getModel();
       const chat = model.startChat({
         history: historyForModel,
@@ -143,6 +168,7 @@ export class AIAssistantService {
       const toolsUsed: string[] = [];
       let finalResponse = '';
       let iterations = 0;
+      let lastToolCall: { name: string; response: any } | null = null;
 
       while (iterations < MAX_TOOL_ITERATIONS) {
         iterations += 1;
@@ -208,6 +234,11 @@ export class AIAssistantService {
             responseObject = { success: true, result: toolResult };
           }
 
+          lastToolCall = {
+            name: functionCall.name,
+            response: responseObject,
+          };
+
           functionResponseParts.push({
             functionResponse: {
               name: functionCall.name,
@@ -225,7 +256,9 @@ export class AIAssistantService {
 
           if (!responseText || responseText.trim() === '') {
             console.error('[AI Error] Model returned empty response after tool execution');
-            finalResponse = 'Lo siento, hubo un problema al procesar tu solicitud. Por favor intenta de nuevo.';
+            finalResponse =
+              buildFallbackResponse(lastToolCall) ??
+              'Lo siento, hubo un problema al procesar tu solicitud. Por favor intenta de nuevo.';
           } else {
             finalResponse = responseText;
           }
