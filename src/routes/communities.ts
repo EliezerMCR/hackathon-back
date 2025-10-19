@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authenticate } from '../middlewares/auth';
+import { processImages } from '../middlewares/imageProcessor';
 import { HTTP403Error, HTTP404Error } from '../utils/errors';
 
 const router = Router();
@@ -58,14 +59,14 @@ const ensureCommunityAdmin = async (req: AuthRequest, communityId: number) => {
 const createCommunitySchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   description: z.string().optional(),
-  image: z.string().optional(),
+  image: z.string().min(1).optional(),
   categoryId: z.number().int().positive('Category is required'),
 });
 
 const updateCommunitySchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().optional(),
-  image: z.string().optional(),
+  image: z.string().min(1).optional(),
   categoryId: z.number().int().positive().optional(),
 });
 
@@ -83,7 +84,7 @@ const communityEventFilterSchema = z.object({
 // GET /api/communities - Get all communities
 router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
-    const communities = await prisma.community.findMany({
+    const communities = await prismaAny.community.findMany({
       include: {
         category: {
           select: {
@@ -126,7 +127,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid community ID' });
     }
 
-    const community = await prisma.community.findUnique({
+    const community = await prismaAny.community.findUnique({
       where: { id: communityId },
       include: {
         category: {
@@ -165,6 +166,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
             timeBegin: true,
             timeEnd: true,
             status: true,
+            image: true,
             place: {
               select: {
                 name: true,
@@ -194,7 +196,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
 });
 
 // POST /api/communities - Create new community
-router.post('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticate, processImages(['image']), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const validation = createCommunitySchema.safeParse(req.body);
 
@@ -205,7 +207,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
       });
     }
 
-    const { name, description, categoryId } = validation.data;
+  const { name, description, categoryId, image } = validation.data;
     const creatorId = req.user?.userId;
 
     if (!creatorId) {
@@ -227,11 +229,12 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
       return res.status(409).json({ error: 'Ya existe una comunidad con ese nombre' });
     }
 
-    const community = await prisma.community.create({
+    const community = await prismaAny.community.create({
       data: {
         name,
         description,
         categoryId,
+        image,
         createdById: creatorId,
         members: {
           create: {
@@ -347,7 +350,7 @@ router.get('/:id/events', authenticate, async (req: Request, res: Response) => {
 });
 
 // PUT /api/communities/:id - Update community
-router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put('/:id', authenticate, processImages(['image']), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const communityId = parseInt(id, 10);
@@ -369,7 +372,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
       });
     }
 
-    const { categoryId, ...otherData } = validation.data;
+  const { categoryId, image, ...otherData } = validation.data;
 
     // Verify category exists if updating
     if (categoryId !== undefined) {
@@ -381,11 +384,12 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
       }
     }
 
-    const community = await prisma.community.update({
+    const community = await prismaAny.community.update({
       where: { id: communityId },
       data: {
         ...otherData,
         ...(categoryId !== undefined && { categoryId }),
+        ...(image !== undefined && { image }),
       },
       include: {
         category: {
