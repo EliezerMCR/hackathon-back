@@ -63,3 +63,4 @@
 - Usa la ciudad registrada del usuario como valor por defecto en `get_available_places`; solo pregunta si falta o el usuario desea otra.
 - Ofrece siempre un siguiente paso (reservar, buscar más opciones, cambiar filtros) y evita respuestas como “ya te di la información”.
 - Con las nuevas herramientas de comunidad puede obtener IDs reales y resúmenes antes de crear o gestionar planes comunitarios.
+- Puede recomendar nuevas comunidades mediante `get_recommended_communities`, priorizando las más activas y mostrando eventos próximos para que el usuario elija.
