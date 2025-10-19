@@ -137,76 +137,76 @@ router.post(
   },
 );
 
-router.post(
-  '/signup-with-privilege',
-  authenticate,
-  authorize(['ADMIN']),
-  processImages(['image']),
-  validate(signupWithPrivilegeSchema),
-  async (req, res, next) => {
-    const {
-      name,
-      lastName,
-      email,
-      password,
-      birthDate,
-      gender,
-      role,
-      city,
-      country,
-      documentFrontImage,
-      image,
-    } = req.body as typeof signupWithPrivilegeSchema._type & { image?: string };
+// router.post(
+//   '/signup-with-privilege',
+//   authenticate,
+//   authorize(['ADMIN']),
+//   processImages(['image']),
+//   validate(signupWithPrivilegeSchema),
+//   async (req, res, next) => {
+//     const {
+//       name,
+//       lastName,
+//       email,
+//       password,
+//       birthDate,
+//       gender,
+//       role,
+//       city,
+//       country,
+//       documentFrontImage,
+//       image,
+//     } = req.body as typeof signupWithPrivilegeSchema._type & { image?: string };
 
-    try {
-      const verification = await verifyDocument({
-        documentFrontImage,
-        fullName: `${name} ${lastName}`.trim(),
-      });
+//     try {
+//       const verification = await verifyDocument({
+//         documentFrontImage,
+//         fullName: `${name} ${lastName}`.trim(),
+//       });
 
-      const documentDigits = verification.extractedDocumentNumberDigits;
-      if (!documentDigits) {
-        throw new HTTP400Error('No se pudo determinar el número de documento.');
-      }
+//       const documentDigits = verification.extractedDocumentNumberDigits;
+//       if (!documentDigits) {
+//         throw new HTTP400Error('No se pudo determinar el número de documento.');
+//       }
 
-      const documentId = parseInt(documentDigits, 10);
-      if (Number.isNaN(documentId)) {
-        throw new HTTP400Error('El número de documento detectado es inválido.');
-      }
+//       const documentId = parseInt(documentDigits, 10);
+//       if (Number.isNaN(documentId)) {
+//         throw new HTTP400Error('El número de documento detectado es inválido.');
+//       }
 
-      const hashedPassword = await bcrypt.hash(password, 10);
-      await prisma.user.create({
-        data: {
-          name,
-          lastName,
-          email,
-          password: hashedPassword,
-          birthDate: new Date(birthDate),
-          gender,
-          city,
-          country,
-          role,
-          documentId,
-          image,
-        },
-      });
+//       const hashedPassword = await bcrypt.hash(password, 10);
+//       await prisma.user.create({
+//         data: {
+//           name,
+//           lastName,
+//           email,
+//           password: hashedPassword,
+//           birthDate: new Date(birthDate),
+//           gender,
+//           city,
+//           country,
+//           role,
+//           documentId,
+//           image,
+//         },
+//       });
 
-      res.status(201).json({
-        message: 'User created successfully',
-        documentVerified: verification.isValid,
-        extractedDocumentNumber: verification.formattedExtractedDocumentNumber ?? documentDigits,
-      });
-    } catch (error: any) {
-      if (error.code === 'P2002') {
-        return next(new HTTP409Error('User already exists'));
-      }
-      if (error instanceof HTTP400Error) {
-        return next(error);
-      }
-      next(error);
-    }
-  },
-);
+//       res.status(201).json({
+//         message: 'User created successfully',
+//         documentVerified: verification.isValid,
+//         extractedDocumentNumber: verification.formattedExtractedDocumentNumber ?? documentDigits,
+//       });
+//     } catch (error: any) {
+//       if (error.code === 'P2002') {
+//         return next(new HTTP409Error('User already exists'));
+//       }
+//       if (error instanceof HTTP400Error) {
+//         return next(error);
+//       }
+//       next(error);
+//     }
+//   },
+// );
 
 router.post('/login', validate(loginSchema), async (req, res, next) => {
   const { email, password } = req.body;
