@@ -120,7 +120,18 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
         where,
         skip,
         take: limitNum,
-        include: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          timeBegin: true,
+          timeEnd: true,
+          minAge: true,
+          status: true,
+          visibility: true,
+          externalUrl: true,
+          image: true,
+          createdAt: true,
           place: {
             select: {
               id: true,
@@ -189,7 +200,18 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
 
     const event = await prisma.event.findUnique({
       where: { id: eventId },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        timeBegin: true,
+        timeEnd: true,
+        minAge: true,
+        status: true,
+        visibility: true,
+        externalUrl: true,
+        image: true,
+        createdAt: true,
         place: {
           select: {
             id: true,
