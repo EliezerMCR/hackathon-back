@@ -142,7 +142,7 @@ const parseWithFormats = (
   formats: Array<{ format: string; locale: string; formatWithYear?: string }>,
   timeInfo: TimeInfo | null,
   referenceNow: DateTime = DateTime.now().setZone(EVENT_TIMEZONE)
-): DateTime | null => {
+): { date: DateTime; timeProvided: boolean } | null => {
   const hasYear = /\d{4}/.test(value);
 
   for (const { format, locale, formatWithYear } of formats) {
@@ -163,28 +163,46 @@ const parseWithFormats = (
     }
 
     if (candidate.isValid) {
-      return applyTime(candidate, timeInfo);
+      return {
+        date: applyTime(candidate, timeInfo),
+        timeProvided: Boolean(timeInfo),
+      };
     }
   }
 
   return null;
 };
 
-const parseRelativeDate = (lower: string, timeInfo: TimeInfo | null): DateTime | null => {
+const parseRelativeDate = (
+  lower: string,
+  timeInfo: TimeInfo | null
+): { date: DateTime; timeProvided: boolean } | null => {
   const now = DateTime.now().setZone(EVENT_TIMEZONE).startOf('minute');
 
   if (lower.includes('pasado mañana')) {
-    return applyTime(now.plus({ days: 2 }), timeInfo);
+    return {
+      date: applyTime(now.plus({ days: 2 }), timeInfo),
+      timeProvided: Boolean(timeInfo),
+    };
   }
   if (lower.includes('mañana') || lower.includes('tomorrow')) {
-    return applyTime(now.plus({ days: 1 }), timeInfo);
+    return {
+      date: applyTime(now.plus({ days: 1 }), timeInfo),
+      timeProvided: Boolean(timeInfo),
+    };
   }
   if (lower.includes('hoy') || lower.includes('today')) {
-    return applyTime(now, timeInfo);
+    return {
+      date: applyTime(now, timeInfo),
+      timeProvided: Boolean(timeInfo),
+    };
   }
   if (lower.includes('fin de semana') || lower.includes('weekend')) {
     const daysUntilSaturday = (6 - now.weekday + 7) % 7 || 7;
-    return applyTime(now.plus({ days: daysUntilSaturday }), timeInfo);
+    return {
+      date: applyTime(now.plus({ days: daysUntilSaturday }), timeInfo),
+      timeProvided: Boolean(timeInfo),
+    };
   }
 
   const weekdayMatch = lower.match(/(este|próximo|proximo|siguiente)?\s*(domingo|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|sunday|monday|tuesday|wednesday|thursday|friday|saturday)/);
@@ -202,7 +220,10 @@ const parseRelativeDate = (lower: string, timeInfo: TimeInfo | null): DateTime |
       } else if (daysToAdd === 0 && !modifier && applyTime(now, timeInfo) <= now) {
         daysToAdd = 7;
       }
-      return applyTime(now.plus({ days: daysToAdd }), timeInfo);
+      return {
+        date: applyTime(now.plus({ days: daysToAdd }), timeInfo),
+        timeProvided: Boolean(timeInfo),
+      };
     }
   }
 
@@ -211,7 +232,7 @@ const parseRelativeDate = (lower: string, timeInfo: TimeInfo | null): DateTime |
 
 const parseNaturalLanguageDate = (
   input: string
-): { success: boolean; date?: DateTime; message?: string; reason?: string } => {
+): { success: boolean; date?: DateTime; message?: string; reason?: string; timeProvided?: boolean } => {
   const trimmed = input.trim();
   if (!trimmed) {
     return {
@@ -240,7 +261,11 @@ const parseNaturalLanguageDate = (
   if (iso.isValid) {
     const hasExplicitTime = /t\d{1,2}[:\.]\d{2}/i.test(trimmed) || /\d{1,2}[:\.]\d{2}/.test(trimmed);
     const dateWithTime = hasExplicitTime ? iso : applyTime(iso, timeInfo);
-    return { success: true, date: hasExplicitTime ? iso : dateWithTime };
+    return {
+      success: true,
+      date: hasExplicitTime ? iso : dateWithTime,
+      timeProvided: hasExplicitTime || Boolean(timeInfo),
+    };
   }
 
   const numericFormats = [
@@ -255,7 +280,11 @@ const parseNaturalLanguageDate = (
   for (const candidate of sanitizedCandidates) {
     const numericResult = parseWithFormats(candidate, numericFormats, timeInfo, now);
     if (numericResult) {
-      return { success: true, date: numericResult };
+      return {
+        success: true,
+        date: numericResult.date,
+        timeProvided: numericResult.timeProvided,
+      };
     }
 
     const shortDateMatch = candidate.match(/^(\d{1,2})[\/-](\d{1,2})$/);
@@ -268,7 +297,11 @@ const parseNaturalLanguageDate = (
       });
       if (parsedCandidate.isValid) {
         const adjusted = parsedCandidate < now ? parsedCandidate.plus({ year: 1 }) : parsedCandidate;
-        return { success: true, date: applyTime(adjusted, timeInfo) };
+        return {
+          success: true,
+          date: applyTime(adjusted, timeInfo),
+          timeProvided: Boolean(timeInfo),
+        };
       }
     }
   }
@@ -304,13 +337,21 @@ const parseNaturalLanguageDate = (
   for (const candidate of sanitizedCandidates) {
     const monthResult = parseWithFormats(candidate, monthFormats, timeInfo, now);
     if (monthResult) {
-      return { success: true, date: monthResult };
+      return {
+        success: true,
+        date: monthResult.date,
+        timeProvided: monthResult.timeProvided,
+      };
     }
   }
 
   const relativeResult = parseRelativeDate(sanitizedLower, timeInfo);
   if (relativeResult) {
-    return { success: true, date: relativeResult };
+    return {
+      success: true,
+      date: relativeResult.date,
+      timeProvided: relativeResult.timeProvided,
+    };
   }
 
   return {
@@ -2134,6 +2175,16 @@ export const updateEventTool: AITool = {
         };
       }
       parsedDate = parsed.date;
+
+      if (!parsed.timeProvided) {
+        const existingLocal = DateTime.fromJSDate(existing.timeBegin).setZone(EVENT_TIMEZONE);
+        parsedDate = parsedDate.set({
+          hour: existingLocal.hour,
+          minute: existingLocal.minute,
+          second: existingLocal.second,
+          millisecond: existingLocal.millisecond,
+        });
+      }
 
       if (!parsedDate.isValid) {
         return {

@@ -11,12 +11,22 @@ interface PromptContext {
   lastEventDate?: string | null;
   lastPlaceName?: string | null;
   defaultCity?: string | null;
+  currentDate?: string | null;
 }
 
 export const buildEventAssistantPrompt = (context?: PromptContext): string => {
   const lines: string[] = [];
 
+  const formattedCurrentDate =
+    context?.currentDate?.trim() ||
+    new Intl.DateTimeFormat('es-VE', {
+      dateStyle: 'full',
+      timeStyle: undefined,
+      timeZone: 'America/Caracas',
+    }).format(new Date());
+
   lines.push('Actúas como un asistente experto en planes y eventos presenciales. Responde en español, con tono cordial y proactivo. Usa siempre la información real que entregan las herramientas.');
+  lines.push(`Hoy es ${formattedCurrentDate} en la zona horaria America/Caracas. Usa esta fecha como referencia para interpretar expresiones relativas como “mañana” o “este viernes”.`);
 
   if (context?.preferredName) {
     lines.push(`Nombre del usuario: ${context.preferredName}.`);
@@ -44,6 +54,7 @@ export const buildEventAssistantPrompt = (context?: PromptContext): string => {
   lines.push('2. `get_available_places`: pasa la ciudad registrada por defecto. Describe cada lugar con 1-2 datos reales del summary. Si el usuario pide “más información” del mismo lugar, ejecuta `get_place_reviews` sin volver a preguntar cuál.');
   lines.push('3. `get_place_reviews`: resume hasta tres comentarios en tono equilibrado (“Los clientes resaltan…”). Relaciona la reseña con el plan.');
   lines.push('4. Creación de eventos: reúne lugar + fecha + hora antes de crear. Si falta algo, pregúntalo. Usa el ID real (índice 0 = “el primero”). Hora por defecto cuando no se indique: 20:00. Confirma siempre con fecha y hora en español (“lunes 20 de octubre de 2025 a las 8:00 pm”).');
+  lines.push('4.b Fechas para herramientas: cuando llames a una tool que reciba parámetros como date, referenceDate o similares, intenta normalizar la fecha que tengas al formato ISO `YYYY-MM-DD` o `YYYY-MM-DDTHH:mm` (hora en 24h). Solo envía lenguaje natural si realmente no tienes una fecha concreta; en ese caso, incluye pistas como “este viernes a las 7pm” para que el backend la interprete.');
   lines.push('5. Comunidades: usa `get_user_communities` para listar las comunidades del usuario y obtener IDs reales. Si necesitas detalles de una comunidad concreta, ejecuta `get_community_overview` antes de crear o gestionar planes.');
   lines.push('6. Recomendaciones: si el usuario quiere nuevas comunidades donde participar, utiliza `get_recommended_communities` (y `get_user_communities` para cruzar IDs) antes de sugerir eventos.');
   lines.push('7. Eventos existentes: ante preguntas como “qué planes tengo”, ejecuta `get_upcoming_events` y `get_joined_events` sin pedir confirmación. Conserva los IDs para futuras modificaciones. Solo puedes editar eventos que organice el usuario; para quitar la hora de finalización usa `update_event` con removeEndTime=true.');
