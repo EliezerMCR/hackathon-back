@@ -225,6 +225,15 @@ const parseNaturalLanguageDate = (
   const timeInfo = extractTimeInfo(lower);
   const sanitized = stripTimeComponents(trimmed);
   const sanitizedLower = sanitized.toLowerCase();
+  const sanitizedWithoutWeekday = sanitized
+    .replace(
+      /^(?:el\s+)?(?:(?:este|próximo|proximo|siguiente)\s+)?(?:domingo|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|sunday|monday|tuesday|wednesday|thursday|friday|saturday)(?:\s+|,\s*)/i,
+      ''
+    )
+    .trim();
+  const sanitizedCandidates = Array.from(
+    new Set([sanitized, sanitizedWithoutWeekday].filter(candidate => candidate && candidate.length > 0))
+  );
   const now = DateTime.now().setZone(EVENT_TIMEZONE);
 
   const iso = DateTime.fromISO(trimmed, { zone: EVENT_TIMEZONE });
@@ -243,22 +252,24 @@ const parseNaturalLanguageDate = (
     { format: 'yyyy-M-d', locale: 'en' },
   ];
 
-  const numericResult = parseWithFormats(sanitized, numericFormats, timeInfo, now);
-  if (numericResult) {
-    return { success: true, date: numericResult };
-  }
+  for (const candidate of sanitizedCandidates) {
+    const numericResult = parseWithFormats(candidate, numericFormats, timeInfo, now);
+    if (numericResult) {
+      return { success: true, date: numericResult };
+    }
 
-  const shortDateMatch = sanitized.match(/^(\d{1,2})[\/-](\d{1,2})$/);
-  if (shortDateMatch) {
-    const day = shortDateMatch[1];
-    const month = shortDateMatch[2];
-    const candidate = DateTime.fromFormat(`${day}/${month}/${now.year}`, 'd/M/yyyy', {
-      zone: EVENT_TIMEZONE,
-      locale: 'es',
-    });
-    if (candidate.isValid) {
-      const adjusted = candidate < now ? candidate.plus({ year: 1 }) : candidate;
-      return { success: true, date: applyTime(adjusted, timeInfo) };
+    const shortDateMatch = candidate.match(/^(\d{1,2})[\/-](\d{1,2})$/);
+    if (shortDateMatch) {
+      const day = shortDateMatch[1];
+      const month = shortDateMatch[2];
+      const parsedCandidate = DateTime.fromFormat(`${day}/${month}/${now.year}`, 'd/M/yyyy', {
+        zone: EVENT_TIMEZONE,
+        locale: 'es',
+      });
+      if (parsedCandidate.isValid) {
+        const adjusted = parsedCandidate < now ? parsedCandidate.plus({ year: 1 }) : parsedCandidate;
+        return { success: true, date: applyTime(adjusted, timeInfo) };
+      }
     }
   }
 
@@ -290,9 +301,11 @@ const parseNaturalLanguageDate = (
     },
   ];
 
-  const monthResult = parseWithFormats(sanitized, monthFormats, timeInfo, now);
-  if (monthResult) {
-    return { success: true, date: monthResult };
+  for (const candidate of sanitizedCandidates) {
+    const monthResult = parseWithFormats(candidate, monthFormats, timeInfo, now);
+    if (monthResult) {
+      return { success: true, date: monthResult };
+    }
   }
 
   const relativeResult = parseRelativeDate(sanitizedLower, timeInfo);
