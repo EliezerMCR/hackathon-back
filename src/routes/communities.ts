@@ -58,12 +58,14 @@ const ensureCommunityAdmin = async (req: AuthRequest, communityId: number) => {
 const createCommunitySchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   description: z.string().optional(),
+  image: z.string().optional(),
   categoryId: z.number().int().positive('Category is required'),
 });
 
 const updateCommunitySchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().optional(),
+  image: z.string().optional(),
   categoryId: z.number().int().positive().optional(),
 });
 

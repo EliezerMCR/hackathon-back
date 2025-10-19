@@ -198,6 +198,7 @@ model Community {
   id            Int                   @id @default(autoincrement())
   name          String
   description   String?               @db.Text
+  image         String?               @db.Text
   createdById   Int                   @map("created_by")
   categoryId    Int                   @map("category_id")
   createdBy     User                  @relation("CommunityCreator", fields: [createdById], references: [id], onDelete: Cascade)
