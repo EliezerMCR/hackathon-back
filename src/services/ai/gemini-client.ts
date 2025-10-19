@@ -82,4 +82,32 @@ export class GeminiClient {
     this.initialize();
     return this.model!;
   }
+
+  /**
+   * Transcribe audio to text using Gemini's multimodal capabilities
+   * Supports audio files up to 2 minutes
+   */
+  async transcribeAudio(audioBuffer: Buffer, mimeType: string): Promise<string> {
+    this.initialize();
+
+    // Gemini expects audio data as base64
+    const base64Audio = audioBuffer.toString('base64');
+
+    const prompt = `Transcribe este audio al español. 
+Devuelve ÚNICAMENTE el texto transcrito, sin explicaciones adicionales.
+Si el audio está en otro idioma, tradúcelo al español.`;
+
+    const result = await this.model!.generateContent([
+      {
+        inlineData: {
+          data: base64Audio,
+          mimeType: mimeType,
+        },
+      },
+      { text: prompt },
+    ]);
+
+    const response = result.response;
+    return response.text();
+  }
 }

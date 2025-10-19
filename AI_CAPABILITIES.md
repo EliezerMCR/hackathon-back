@@ -1,5 +1,37 @@
 # Capacidades actuales de la IA
 
+## 🎤 Entrada de Audio (NUEVO)
+
+El asistente ahora soporta mensajes de voz mediante el endpoint `/api/ai/audio`.
+
+### Flujo de procesamiento de audio:
+1. **Recepción**: El usuario envía un archivo de audio (MP3, WAV, WebM, OGG, M4A, FLAC, AAC)
+2. **Transcripción**: Gemini convierte el audio a texto en español (traduce automáticamente si está en otro idioma)
+3. **Procesamiento**: La transcripción se procesa como un mensaje de chat normal
+4. **Ejecución de tools**: El asistente ejecuta las herramientas necesarias basándose en la transcripción
+5. **Respuesta**: Se devuelve tanto la transcripción como la respuesta del asistente
+
+### Características:
+- **Formatos soportados**: MP3, WAV, WebM, OGG, M4A, FLAC, AAC
+- **Duración máxima recomendada**: 2 minutos
+- **Tamaño máximo**: 10 MB
+- **Idioma**: El audio se transcribe siempre en español (con traducción automática si es necesario)
+- **Contexto conversacional**: Mantiene el historial de conversación como el chat de texto
+
+### Ejemplo de uso:
+**Audio del usuario:** "Hola, estoy buscando lugares en Caracas para organizar un evento de aproximadamente 50 personas este fin de semana"
+
+**Respuesta del sistema:**
+```json
+{
+  "transcription": "Hola, estoy buscando lugares en Caracas para organizar un evento de aproximadamente cincuenta personas este fin de semana",
+  "response": "Encontré 3 lugares en Caracas que pueden acomodar 50 personas: 1. Centro de Convenciones - Capacidad 100 personas...",
+  "toolsUsed": ["get_available_places"]
+}
+```
+
+---
+
 ## Herramientas disponibles
 
 ### `get_available_places`

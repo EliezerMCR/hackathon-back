@@ -337,8 +337,79 @@ Eliminar categoría (ADMIN).
 ### POST `/api/ai/chat`
 Enviar mensaje al asistente IA.
 
+**Request Body:**
+```json
+{
+  "message": "Busco lugares en Caracas para un evento de 50 personas",
+  "conversationId": "optional-session-id",
+  "resetConversation": false
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "response": "Encontré 3 lugares en Caracas que pueden acomodar 50 personas...",
+    "toolsUsed": ["get_available_places"],
+    "conversationHistory": [...],
+    "conversationId": "user-123"
+  }
+}
+```
+
+### POST `/api/ai/audio`
+Enviar audio para transcribir y procesar con IA.
+
+**Request (multipart/form-data):**
+- `audio`: Archivo de audio (MP3, WAV, WebM, OGG, M4A, FLAC, AAC)
+- `conversationId`: (opcional) ID de sesión
+- `resetConversation`: (opcional) "true" para reiniciar conversación
+
+**Formatos soportados:**
+- MP3 (audio/mpeg)
+- WAV (audio/wav)
+- WebM (audio/webm)
+- OGG (audio/ogg)
+- M4A (audio/mp4)
+- FLAC (audio/flac)
+- AAC (audio/aac)
+
+**Límites:**
+- Tamaño máximo: 10 MB
+- Duración recomendada: hasta 2 minutos
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "transcription": "Busco lugares en Caracas para un evento de cincuenta personas",
+    "response": "Encontré 3 lugares en Caracas que pueden acomodar 50 personas...",
+    "toolsUsed": ["get_available_places"],
+    "conversationHistory": [...],
+    "conversationId": "user-123"
+  }
+}
+```
+
+**Ejemplo con curl:**
+```bash
+curl -X POST https://tu-api.com/api/ai/audio \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "audio=@voice-message.mp3" \
+  -F "conversationId=session-123"
+```
+
 ### GET `/api/ai/tools`
 Obtener lista de herramientas disponibles del IA.
+
+### DELETE `/api/ai/conversation`
+Limpiar historial de conversación.
+
+**Query Params:**
+- `conversationId`: (opcional) ID de conversación específica
 
 ### GET `/api/ai/health`
 Verificar estado del servicio IA.

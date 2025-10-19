@@ -38,6 +38,19 @@ export interface ChatResponse {
   userContext?: UserContext;
 }
 
+export interface AudioTranscriptionRequest {
+  audioBuffer: Buffer;
+  mimeType: string;
+  userId: number;
+  sessionId?: string;
+  conversationHistory?: ChatMessage[];
+  userContext?: UserContext;
+}
+
+export interface AudioTranscriptionResponse extends ChatResponse {
+  transcription: string;
+}
+
 export interface AvailablePlace {
   id: number;
   name: string;

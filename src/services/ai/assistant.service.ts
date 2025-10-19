@@ -8,7 +8,14 @@ import { DateTime } from 'luxon';
 import { prisma } from '../../lib/prisma';
 import { GeminiClient } from './gemini-client';
 import { availableTools } from './tools';
-import { ChatRequest, ChatResponse, ChatMessage, UserContext } from './types';
+import { 
+  ChatRequest, 
+  ChatResponse, 
+  ChatMessage, 
+  UserContext, 
+  AudioTranscriptionRequest, 
+  AudioTranscriptionResponse 
+} from './types';
 import { aiConversationStore } from './conversation-store';
 import { buildEventAssistantPrompt } from './prompts';
 
@@ -365,5 +372,39 @@ export class AIAssistantService {
       description: tool.description,
       parameters: tool.parameters,
     }));
+  }
+
+  /**
+   * Process audio file: transcribe and then chat
+   */
+  async transcribeAndChat(request: AudioTranscriptionRequest): Promise<AudioTranscriptionResponse> {
+    const { audioBuffer, mimeType, userId, sessionId, conversationHistory, userContext } = request;
+
+    try {
+      // Step 1: Transcribe audio to text
+      const transcription = await this.geminiClient.transcribeAudio(audioBuffer, mimeType);
+
+      if (!transcription || transcription.trim().length === 0) {
+        throw new Error('No se pudo transcribir el audio. Intenta nuevamente.');
+      }
+
+      // Step 2: Use transcription as a regular chat message
+      const chatResponse = await this.chat({
+        message: transcription,
+        userId,
+        sessionId,
+        conversationHistory,
+        userContext,
+      });
+
+      // Step 3: Return both transcription and chat response
+      return {
+        transcription: transcription.trim(),
+        ...chatResponse,
+      };
+    } catch (error: any) {
+      console.error('Error in audio transcription and chat:', error);
+      throw new Error(`Audio processing error: ${error.message}`);
+    }
   }
 }
