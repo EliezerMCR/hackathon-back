@@ -133,6 +133,7 @@ model Event {
   placeId     Int          @map("id_place")
   organizerId Int          @map("id_organizer")
   communityId Int?         @map("community_id")
+  categoryId  Int?         @map("category_id")
   minAge      Int          @default(18) @map("min_age")
   status      String       @default("proximo") @db.VarChar(20)
   visibility  EventVisibility @default(PRIVATE)
@@ -142,6 +143,7 @@ model Event {
   place       Place        @relation(fields: [placeId], references: [id], onDelete: Cascade)
   organizer   User         @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
   community   Community?   @relation(fields: [communityId], references: [id])
+  category    Category?    @relation(fields: [categoryId], references: [id])
   tickets     Ticket[]
   reviews     Review[]
   ads         Ad[]         @relation("AdEvent")
@@ -195,8 +197,11 @@ model Review {
 model Community {
   id            Int                   @id @default(autoincrement())
   name          String
+  description   String?               @db.Text
   createdById   Int                   @map("created_by")
+  categoryId    Int                   @map("category_id")
   createdBy     User                  @relation("CommunityCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  category      Category              @relation(fields: [categoryId], references: [id])
   events        Event[]
   members       Community_Member[]
   requests      Request[]
@@ -307,11 +312,13 @@ model Promotion {
 }
 
 model Category {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique @db.VarChar(100)
-  description String?  @db.Text
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  createdBy   Int      @map("created_by")
+  id          Int         @id @default(autoincrement())
+  name        String      @unique @db.VarChar(100)
+  description String?     @db.Text
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  createdBy   Int         @map("created_by")
+  events      Event[]
+  communities Community[]
 
   @@map("Category")
 }

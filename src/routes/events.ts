@@ -17,6 +17,7 @@ const createEventSchema = z.object({
   timeEnd: z.string().datetime().optional(),
   placeId: z.number().int().positive(),
   communityId: z.number().int().positive().optional(),
+  categoryId: z.number().int().positive().optional(),
   minAge: z.number().int().min(0).max(100).default(18),
   externalUrl: z.string().url().optional(),
   visibility: z.enum(['PUBLIC', 'PRIVATE']).default('PRIVATE'),
@@ -29,6 +30,7 @@ const updateEventSchema = z.object({
   timeBegin: z.string().datetime().optional(),
   timeEnd: z.string().datetime().optional(),
   minAge: z.number().int().min(0).max(100).optional(),
+  categoryId: z.number().int().positive().optional().nullable(),
   status: z.string().max(20).optional(),
   externalUrl: z.string().url().optional(),
   visibility: z.enum(['PUBLIC', 'PRIVATE']).optional(),
@@ -157,6 +159,13 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
               name: true,
             },
           },
+          category: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+            },
+          },
           _count: {
             select: {
               tickets: true,
@@ -245,6 +254,13 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
             },
           },
         },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          },
+        },
         tickets: {
           include: {
             promotions: {
@@ -319,7 +335,7 @@ router.post('/', authenticate, processImages(['image']), async (req: AuthRequest
       });
     }
 
-    const { placeId, communityId, timeBegin, timeEnd, visibility, ...eventData } = validation.data;
+    const { placeId, communityId, categoryId, timeBegin, timeEnd, visibility, ...eventData } = validation.data;
 
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -343,6 +359,16 @@ router.post('/', authenticate, processImages(['image']), async (req: AuthRequest
       }
     }
 
+    // Verify category exists if provided
+    if (categoryId) {
+      const categoryExists = await prisma.category.findUnique({
+        where: { id: categoryId },
+      });
+      if (!categoryExists) {
+        return res.status(404).json({ error: 'Category not found' });
+      }
+    }
+
     const event = await prisma.event.create({
       data: {
         ...eventData,
@@ -351,6 +377,7 @@ router.post('/', authenticate, processImages(['image']), async (req: AuthRequest
         placeId,
         organizerId,
         communityId,
+        categoryId: categoryId ?? undefined,
         status: 'proximo',
         visibility,
         // Automatically add organizer as attendee
@@ -379,6 +406,13 @@ router.post('/', authenticate, processImages(['image']), async (req: AuthRequest
           select: {
             id: true,
             name: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
           },
         },
         _count: {
@@ -424,12 +458,22 @@ router.put('/:id', authenticate, processImages(['image']), async (req: AuthReque
       return res.status(403).json({ error: 'Only admins can change event status' });
     }
 
-    const { timeBegin, timeEnd, ...rest } = validation.data;
+    const { timeBegin, timeEnd, categoryId, ...rest } = validation.data;
 
     if (rest.visibility === 'PUBLIC' && !managedEvent.communityId) {
       return res
         .status(400)
         .json({ error: 'A public event must belong to a community' });
+    }
+
+    // Verify category exists if updating
+    if (categoryId !== undefined && categoryId !== null) {
+      const categoryExists = await prisma.category.findUnique({
+        where: { id: categoryId },
+      });
+      if (!categoryExists) {
+        return res.status(404).json({ error: 'Category not found' });
+      }
     }
 
     const updateData: any = { ...rest };
@@ -440,6 +484,10 @@ router.put('/:id', authenticate, processImages(['image']), async (req: AuthReque
 
     if (timeEnd) {
       updateData.timeEnd = new Date(timeEnd);
+    }
+
+    if (categoryId !== undefined) {
+      updateData.categoryId = categoryId;
     }
 
     const event = await prisma.event.update({
@@ -458,6 +506,13 @@ router.put('/:id', authenticate, processImages(['image']), async (req: AuthReque
             id: true,
             name: true,
             lastName: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
           },
         },
       },

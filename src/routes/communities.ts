@@ -57,10 +57,14 @@ const ensureCommunityAdmin = async (req: AuthRequest, communityId: number) => {
 
 const createCommunitySchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
+  description: z.string().optional(),
+  categoryId: z.number().int().positive('Category is required'),
 });
 
 const updateCommunitySchema = z.object({
   name: z.string().min(1).max(255).optional(),
+  description: z.string().optional(),
+  categoryId: z.number().int().positive().optional(),
 });
 
 const communityEventFilterSchema = z.object({
@@ -79,6 +83,20 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const communities = await prisma.community.findMany({
       include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            lastName: true,
+          },
+        },
         _count: {
           select: {
             members: true,
@@ -109,6 +127,21 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
     const community = await prisma.community.findUnique({
       where: { id: communityId },
       include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            lastName: true,
+            email: true,
+          },
+        },
         members: {
           include: {
             user: {
@@ -170,11 +203,19 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
       });
     }
 
-    const { name } = validation.data;
+    const { name, description, categoryId } = validation.data;
     const creatorId = req.user?.userId;
 
     if (!creatorId) {
       throw new HTTP403Error('Authentication required');
+    }
+
+    // Verify category exists (required)
+    const categoryExists = await prisma.category.findUnique({
+      where: { id: categoryId },
+    });
+    if (!categoryExists) {
+      return res.status(404).json({ error: 'Category not found' });
     }
 
     const existing = await prisma.community.findFirst({
@@ -187,6 +228,8 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
     const community = await prisma.community.create({
       data: {
         name,
+        description,
+        categoryId,
         createdById: creatorId,
         members: {
           create: {
@@ -196,6 +239,13 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
         },
       } as any,
       include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          },
+        },
         members: {
           include: {
             user: {
@@ -317,9 +367,33 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
       });
     }
 
+    const { categoryId, ...otherData } = validation.data;
+
+    // Verify category exists if updating
+    if (categoryId !== undefined) {
+      const categoryExists = await prisma.category.findUnique({
+        where: { id: categoryId },
+      });
+      if (!categoryExists) {
+        return res.status(404).json({ error: 'Category not found' });
+      }
+    }
+
     const community = await prisma.community.update({
       where: { id: communityId },
-      data: validation.data,
+      data: {
+        ...otherData,
+        ...(categoryId !== undefined && { categoryId }),
+      },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          },
+        },
+      },
     });
 
     res.json(community);
