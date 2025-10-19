@@ -2,6 +2,7 @@
  * AI Assistant Routes
  * Endpoints for interacting with the AI assistant powered by Gemini
  */
+import { randomUUID } from 'node:crypto';
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import multer from 'multer';
@@ -87,9 +88,19 @@ router.post('/chat', authenticate, async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    const sessionId = conversationId ?? `user-${userId}`;
+    const trimmedConversationId = conversationId?.trim();
 
-    if (resetConversation) {
+    let sessionId: string;
+    let shouldReset = !!resetConversation;
+
+    if (trimmedConversationId && trimmedConversationId.length > 0) {
+      sessionId = trimmedConversationId;
+    } else {
+      sessionId = `ai-conversation-${randomUUID()}`;
+      shouldReset = true;
+    }
+
+    if (shouldReset) {
       aiConversationStore.clear(sessionId);
     }
 
@@ -150,12 +161,22 @@ router.post('/audio', authenticate, upload.single('audio'), async (req: Request,
     }
 
     // Get optional parameters from body
-    const conversationId = req.body.conversationId;
+    const providedConversationId = typeof req.body.conversationId === 'string'
+      ? req.body.conversationId.trim()
+      : undefined;
     const resetConversation = req.body.resetConversation === 'true';
 
-    const sessionId = conversationId ?? `user-${userId}`;
+    let sessionId: string;
+    let shouldReset = resetConversation;
 
-    if (resetConversation) {
+    if (providedConversationId && providedConversationId.length > 0) {
+      sessionId = providedConversationId;
+    } else {
+      sessionId = `ai-conversation-${randomUUID()}`;
+      shouldReset = true;
+    }
+
+    if (shouldReset) {
       aiConversationStore.clear(sessionId);
     }
 

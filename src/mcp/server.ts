@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import readline from 'node:readline';
 import process from 'node:process';
 import jwt from 'jsonwebtoken';
@@ -134,9 +135,9 @@ const handleChatTool = async (args: any) => {
   const userId = extractUserIdFromToken(args.token);
 
   const sessionId =
-    typeof args.sessionId === 'string' && args.sessionId.length > 0
+    typeof args.sessionId === 'string' && args.sessionId.trim().length > 0
       ? args.sessionId
-      : `mcp-user-${userId}`;
+      : `mcp-conversation-${randomUUID()}`;
 
   const existingHistory = aiConversationStore.get(sessionId);
   const cachedContext = aiConversationStore.getContext(sessionId);
