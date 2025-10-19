@@ -45,7 +45,7 @@ export const signupSchema = z.object({
   city: z.string().optional(),
   country: z.string().optional(),
   image: z.string().optional(),
-  documentFrontImage: z.string().min(1, 'La imagen frontal de la cédula es obligatoria.'),
+  documentFrontImage: z.string().min(1, 'La imagen frontal de la cédula es obligatoria.').optional(),
 });
 
 export const signupWithPrivilegeSchema = signupSchema.extend({
