@@ -87,17 +87,16 @@ router.post(
       gender,
       city,
       country,
-      documentFrontImage,
       image,
     } = req.body as typeof signupSchema._type & { image?: string };
 
     try {
-      const verification = await verifyDocument({
+      /*const verification = await verifyDocument({
         documentFrontImage,
         fullName: `${name} ${lastName}`.trim(),
-      });
+      });*/
 
-      const documentDigits = verification.extractedDocumentNumberDigits;
+      /*const documentDigits = verification.extractedDocumentNumberDigits;
       if (!documentDigits) {
         throw new HTTP400Error('No se pudo determinar el número de documento.');
       }
@@ -105,7 +104,7 @@ router.post(
       const documentId = parseInt(documentDigits, 10);
       if (Number.isNaN(documentId)) {
         throw new HTTP400Error('El número de documento detectado es inválido.');
-      }
+      }*/
 
       const hashedPassword = await bcrypt.hash(password, 10);
       await prisma.user.create({
@@ -119,15 +118,12 @@ router.post(
           city,
           country,
           role: 'CLIENT',
-          documentId,
           image,
         },
       });
 
       res.status(201).json({
-        message: 'User created successfully',
-        documentVerified: verification.isValid,
-        extractedDocumentNumber: verification.formattedExtractedDocumentNumber ?? documentDigits,
+        message: 'User created successfully'
       });
     } catch (error: any) {
       if (error.code === 'P2002') {
