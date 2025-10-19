@@ -994,35 +994,14 @@ router.post('/:id/requests', authenticate, async (req: AuthRequest, res: Respons
       },
     });
 
-    // Create notification for community creator and admins
-    const communityAdmins = await prisma.community_Member.findMany({
-      where: {
-        communityId,
-        role: 'ADMIN',
-        exitAt: null,
-      },
-      select: {
-        userId: true,
-      },
-    });
-
-    const adminIds = communityAdmins.map(admin => admin.userId);
-    
-    // Include creator if not already in the admin list
-    if (community.createdById && !adminIds.includes(community.createdById)) {
-      adminIds.push(community.createdById);
-    }
-
-    // Create notifications for all admins
-    const notificationsData = adminIds.map(adminId => ({
-      userId: adminId,
-      title: 'Nueva solicitud de ingreso',
-      message: `${request.from.name} ${request.from.lastName} ha solicitado unirse a la comunidad "${community.name}".`,
-    }));
-
-    if (notificationsData.length > 0) {
-      await prisma.notification.createMany({
-        data: notificationsData,
+    // Create notification for the community creator only
+    if (community.createdById) {
+      await prisma.notification.create({
+        data: {
+          userId: community.createdById,
+          title: 'Nueva solicitud de ingreso',
+          message: `${request.from.name} ${request.from.lastName} ha solicitado unirse a la comunidad "${community.name}".`,
+        },
       });
     }
 
