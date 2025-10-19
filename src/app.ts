@@ -38,8 +38,10 @@ const app = express();
 // Middlewares
 app.use(helmet()); // Security headers
 app.use(cors()); // Enable CORS
-app.use(express.json({ limit: '10mb' })); // Parse JSON bodies (increased limit for base64 images)
-app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Parse URL-encoded bodies
+// Increase body size limits to allow base64 images in JSON payloads from the frontend.
+// Note: serverless platforms (Vercel) may still impose stricter limits at deploy time.
+app.use(express.json({ limit: '50mb' })); // Parse JSON bodies (increased limit for base64 images)
+app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Parse URL-encoded bodies
 
 // Health check endpoint
 app.get('/health', (req, res) => {
