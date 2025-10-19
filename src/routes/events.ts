@@ -21,7 +21,7 @@ const createEventSchema = z.object({
   minAge: z.number().int().min(0).max(100).default(18),
   externalUrl: z.string().url().optional(),
   visibility: z.enum(['PUBLIC', 'PRIVATE']).default('PRIVATE'),
-  image: z.string().min(1),
+  image: z.string().min(1).optional(),
 });
 
 const updateEventSchema = z.object({
