@@ -640,6 +640,21 @@ router.post('/:id/invitations', authenticate, async (req: AuthRequest, res: Resp
             image: true,
           },
         },
+        community: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    // Create notification for invited user
+    await prisma.notification.create({
+      data: {
+        userId: userId,
+        title: 'Nueva invitación a comunidad',
+        message: `${invitation.invitedBy.name} ${invitation.invitedBy.lastName} te ha invitado a unirte a la comunidad "${invitation.community.name}".`,
       },
     });
 
@@ -820,7 +835,18 @@ router.post('/:id/requests', authenticate, async (req: AuthRequest, res: Respons
       throw new HTTP403Error('Authentication required');
     }
 
-    const community = await prisma.community.findUnique({ where: { id: communityId } });
+    const community = await prisma.community.findUnique({ 
+      where: { id: communityId },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            lastName: true,
+          },
+        },
+      },
+    });
     if (!community) {
       return res.status(404).json({ error: 'Community not found' });
     }
@@ -887,6 +913,38 @@ router.post('/:id/requests', authenticate, async (req: AuthRequest, res: Respons
         },
       },
     });
+
+    // Create notification for community creator and admins
+    const communityAdmins = await prisma.community_Member.findMany({
+      where: {
+        communityId,
+        role: 'ADMIN',
+        exitAt: null,
+      },
+      select: {
+        userId: true,
+      },
+    });
+
+    const adminIds = communityAdmins.map(admin => admin.userId);
+    
+    // Include creator if not already in the admin list
+    if (community.createdById && !adminIds.includes(community.createdById)) {
+      adminIds.push(community.createdById);
+    }
+
+    // Create notifications for all admins
+    const notificationsData = adminIds.map(adminId => ({
+      userId: adminId,
+      title: 'Nueva solicitud de ingreso',
+      message: `${request.from.name} ${request.from.lastName} ha solicitado unirse a la comunidad "${community.name}".`,
+    }));
+
+    if (notificationsData.length > 0) {
+      await prisma.notification.createMany({
+        data: notificationsData,
+      });
+    }
 
     res.status(201).json(request);
   } catch (error: any) {

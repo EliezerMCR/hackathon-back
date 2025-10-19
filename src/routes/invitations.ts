@@ -263,6 +263,16 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Create notification for invited user
+    const eventInfo = invitation.event ? ` al evento "${invitation.event.name}"` : '';
+    await prisma.notification.create({
+      data: {
+        userId: toId,
+        title: 'Nueva invitación',
+        message: `${invitation.from.name} ${invitation.from.lastName} te ha invitado${eventInfo} en "${invitation.place.name}".`,
+      },
+    });
+
     res.status(201).json(invitation);
   } catch (error: any) {
     console.error('Error creating invitation:', error);
